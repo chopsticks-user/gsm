@@ -1,0 +1,6 @@
+# Build output
+/gsm
+/gsm.exe
+
+# IDE
+.idea/
