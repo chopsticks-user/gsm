@@ -3,7 +3,9 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-unformatted=$(gofmt -l cmd internal)
+for f in scripts/*.sh; do bash -n "$f"; done
+# go list skips .go/ (the module cache), which gofmt -l . would scan
+unformatted=$(gofmt -l $(go list -f '{{.Dir}}' ./...))
 if [ -n "$unformatted" ]; then
   echo "gofmt needed:" >&2
   echo "$unformatted" >&2

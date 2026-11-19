@@ -103,13 +103,15 @@ internal/steam      steamcmd, build ID, NixOS steamclient.so setup
 internal/gitrepo    git CLI wrapper
 internal/store      snapshot store
 internal/addon      playit podman addon
+flake/              Nix dev shell (flake.nix, flake.lock)
+scripts/            verify.sh (the verify command), palworld.sh (reference)
 ```
 
 Tests use the real filesystem via `t.TempDir()`, and fake servers or steamcmd by re-running the test binary from `TestMain` with an env var set (see `internal/proc/proc_test.go`).
 
 ## Tooling
 
-Go is not installed globally. `flake/flake.nix` provides a dev shell with Go, gopls and gcc (the race detector needs gcc). Enter it with `nix develop path:./flake` or prefix single commands with `nix develop path:./flake -c`. `nix run path:./flake#install` adds a desktop entry that opens VS Code inside the shell (`#uninstall` removes it). The shell keeps Go's module and build caches in the gitignored `.go/` at the repo root instead of `~/go`. `git`, `steamcmd`, `steam-run` and `podman` come from the dev host, not the flake.
+Go is not installed globally. `flake/flake.nix` provides a dev shell with Go, gopls and gcc (the race detector needs gcc). Enter it with `nix develop path:./flake` or prefix single commands with `nix develop path:./flake -c`. `nix run path:./flake#install` writes `~/.local/share/applications/code-gsm.desktop`, which opens VS Code inside the shell (`#uninstall` removes it); on an impermanent home it survives a reboot only if that directory is persisted. Entered from inside the repo, the shell keeps Go's module and build caches in the gitignored `.go/` at the repo root instead of `~/go` (outside a git repo it warns and leaves Go's defaults). `git`, `steamcmd`, `steam-run` and `podman` come from the dev host, not the flake.
 
 - Build: `nix develop path:./flake -c go build ./cmd/gsm`
 - Test: `nix develop path:./flake -c go test -race ./...`

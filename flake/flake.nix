@@ -40,10 +40,14 @@
 
           # keep Go state in the repo instead of ~/go and ~/.cache/go-build
           shellHook = ''
-            root=$(git rev-parse --show-toplevel)
-            export GOPATH=$root/.go
-            export GOMODCACHE=$root/.go/pkg/mod
-            export GOCACHE=$root/.go/cache
+            if root=$(git rev-parse --show-toplevel 2>/dev/null); then
+              export GOPATH=$root/.go
+              export GOMODCACHE=$root/.go/pkg/mod
+              export GOCACHE=$root/.go/cache
+              export GOFLAGS=-modcacherw # so rm -rf .go and git clean work
+            else
+              echo "gsm dev shell: not inside a git repo, Go state stays in ~/go" >&2
+            fi
           '';
         };
         apps =
@@ -60,12 +64,13 @@
                 type = "app";
                 program = toString (
                   pkgs.writeShellScript "install" ''
-                    PROJECT_PATH="''${1:-$(git rev-parse --show-toplevel)}"
-                    mkdir -p ${meta.desktopPath}
-                    cat > ${desktopEntry} <<DESKTOP
+                    PROJECT_PATH=$(realpath "''${1:-$(git rev-parse --show-toplevel)}")
+                    mkdir -p "${meta.desktopPath}"
+                    cat > "${desktopEntry}" <<DESKTOP
                     [Desktop Entry]
                     Name=${meta.ide.name} (${meta.name})
-                    Exec=nix develop ${developCmdArgumentPath} -c ${meta.ide.exec} $PROJECT_PATH
+                    Exec=nix develop "${developCmdArgumentPath}" -c ${meta.ide.exec} "$PROJECT_PATH"
+                    Path=$PROJECT_PATH
                     Icon=${meta.ide.icon}
                     Type=Application
                     Categories=Development;
@@ -77,7 +82,7 @@
               type = "app";
               program = toString (
                 pkgs.writeShellScript "uninstall" ''
-                  rm -f ${desktopEntry}
+                  rm -f "${desktopEntry}"
                 ''
               );
             };

@@ -281,7 +281,7 @@ test: started (pid 39715, port 8212, config f7ebf67)
 
 6. **Open the log.** Output is appended to `logs/server.log`, after a header:
    ```
-   === gsm start 2026-11-09T19:47:39-05:00, config 41870a7 ===
+   === gsm start 2026-11-09T19:47:39-05:00, config 681f6e5 ===
    ```
 
 7. **Launch detached.** `proc.Launch`:
@@ -358,7 +358,7 @@ The fourth row is safe because of a POSIX guarantee: the OS never reuses a PID w
 
 ```
 $ gsm logs main -f
-=== gsm start 2026-11-09T19:47:39-05:00, config 41870a7 ===
+=== gsm start 2026-11-09T19:47:39-05:00, config 681f6e5 ===
 fake server args: -port=8211 -players=4 ...
 ```
 
