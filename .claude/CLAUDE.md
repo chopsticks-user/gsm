@@ -109,8 +109,15 @@ Tests use the real filesystem via `t.TempDir()`, and fake servers or steamcmd by
 
 ## Tooling
 
-Go is not installed globally. Use `nix shell nixpkgs#go` (nixpkgs ships Go 1.26). `git`, `steamcmd`, `steam-run` and `podman` are available on the dev host.
+Go is not installed globally. `flake/flake.nix` provides a dev shell with Go, gopls and gcc (the race detector needs gcc). Enter it with `nix develop path:./flake` or prefix single commands with `nix develop path:./flake -c`. `nix run path:./flake#install` adds a desktop entry that opens VS Code inside the shell (`#uninstall` removes it). The shell keeps Go's module and build caches in the gitignored `.go/` at the repo root instead of `~/go`. `git`, `steamcmd`, `steam-run` and `podman` come from the dev host, not the flake.
 
-- Build: `nix shell nixpkgs#go -c go build ./cmd/gsm`
-- Test: `nix shell nixpkgs#go nixpkgs#gcc -c go test -race ./...` (the race detector needs gcc)
+- Build: `nix develop path:./flake -c go build ./cmd/gsm`
+- Test: `nix develop path:./flake -c go test -race ./...`
 - Cross-compile check: `GOOS=windows go build ./cmd/gsm` and `GOOS=darwin GOARCH=arm64 go build ./cmd/gsm`
+- Verify (gofmt, go vet for Linux, Windows and macOS, race tests): `nix develop path:./flake -c scripts/verify.sh`
+
+## Workflow
+
+- GitHub: `chopsticks-user/gsm` (private). Base branch is `main`.
+- Labels in use: `bug`, `enhancement`, `documentation`.
+- Docs: `docs/how-it-works.md` is the walkthrough and technical reference; `docs/tasks.md` tracks what is built and what is left.
