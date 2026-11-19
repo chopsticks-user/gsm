@@ -2,7 +2,7 @@
 
 This document explains gsm twice over. Part 1 is a step-by-step walkthrough: one user goes from an empty machine to two running Palworld servers, snapshots, a restore and an update, with the real output of each command and what happens underneath. Part 2 is the technical reference: data formats, algorithms, crash safety and per-OS behavior. Part 3 covers what is designed but not built yet.
 
-Status: the code lives on the `demo` branch. It implements, for Palworld: `doctor`, `game`, `create`, `list`, `start`, `stop`, `restart`, `run`, `status`, `logs`, `update`, `config diff|log|commit`, `save snapshot|list|restore`, and the `playit` addon. Everything else is design only and is described in Part 3. `docs/tasks.md` tracks progress.
+Status: gsm implements, for Palworld: `doctor`, `game`, `create`, `list`, `start`, `stop`, `restart`, `run`, `status`, `logs`, `update`, `config diff|log|commit`, `save snapshot|list|restore`, and the `playit` addon. Everything else is design only and is described in Part 3. `docs/tasks.md` tracks progress.
 
 ---
 
