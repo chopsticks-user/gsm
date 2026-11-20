@@ -302,7 +302,7 @@ Because the record comes last, a snapshot exists exactly when its record does. A
 
 ### The store lock
 
-`store/lock` is created with `O_CREATE|O_EXCL`, so exactly one process can create it. It holds the owner's PID and start time. If it exists, gsm checks whether the owner still runs (PID and start time, without the process-group rule, since a gsm process is not a server). A dead owner means a crash left it behind: gsm deletes it and retries. A lock file that is empty or not valid JSON (a crash between creating and writing it) is not taken over yet ([#22](https://github.com/chopsticks-user/gsm/issues/22)). A live owner means gsm polls every 200 ms for up to 30 s, then fails with `snapshot store is locked by another gsm process (pid N)`.
+`store/lock` is created with `O_CREATE|O_EXCL`, so exactly one process can create it. It holds the owner's PID and start time. If it exists, gsm checks whether the owner still runs (PID and start time, without the process-group rule, since a gsm process is not a server). A dead owner means a crash left it behind: gsm deletes it and retries. A lock file that is empty or not valid JSON is left by a crash between creating and writing it, unless a live process is writing it right now; once it is more than 5 s old, gsm takes it over too. A live owner means gsm polls every 200 ms for up to 30 s, then fails with `snapshot store is locked by another gsm process (pid N)`.
 
 Commands that write to the store take it: `save snapshot`, the automatic snapshots in `stop`, `run` and `update`, and `save restore`, which holds it across both the safety snapshot and the swap.
 
@@ -362,7 +362,7 @@ Other writes are not atomic, on purpose or not yet: `logs/server.log` is appende
 | `start` after launch, before `state.json` | server running, gsm doesn't know | stop it by hand (rare: one write after launch) |
 | snapshot | orphan objects, no record | none needed; cleanup (planned) reclaims space |
 | restore | see [Restore](#restore) | automatic on the next restore |
-| store lock holder crashes | stale lock file | taken over automatically, unless the crash left it empty or unreadable ([#22](https://github.com/chopsticks-user/gsm/issues/22)): then delete `store/lock` by hand |
+| store lock holder crashes | stale lock file | taken over automatically (an empty or unreadable one once it is 5 s old) |
 
 ## Cross-platform behavior
 

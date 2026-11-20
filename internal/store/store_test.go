@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -149,4 +150,41 @@ func TestStaleLockIsTakenOver(t *testing.T) {
 		t.Fatal(err)
 	}
 	unlock2()
+}
+
+// A crash between creating the lock and writing its owner leaves an empty
+// or partial file. Once it is old enough to not be mid-write, it is stale.
+func TestUnreadableLockIsTakenOverWhenOld(t *testing.T) {
+	for name, content := range map[string]string{"empty": "", "garbage": `{"pid":12`} {
+		t.Run(name, func(t *testing.T) {
+			s, _ := setup(t)
+			os.MkdirAll(s.Dir, 0o755)
+			lock := filepath.Join(s.Dir, "lock")
+			write(t, lock, content)
+			old := time.Now().Add(-time.Minute)
+			if err := os.Chtimes(lock, old, old); err != nil {
+				t.Fatal(err)
+			}
+			unlock, err := s.Lock(time.Second)
+			if err != nil {
+				t.Fatal(err)
+			}
+			unlock()
+		})
+	}
+}
+
+// An empty lock that was just created may be a live process about to write
+// its owner, so it must not be stolen right away.
+func TestFreshUnreadableLockIsNotTakenOver(t *testing.T) {
+	s, _ := setup(t)
+	os.MkdirAll(s.Dir, 0o755)
+	write(t, filepath.Join(s.Dir, "lock"), "")
+	_, err := s.Lock(300 * time.Millisecond)
+	if err == nil {
+		t.Fatal("a freshly created empty lock was taken over")
+	}
+	if !strings.Contains(err.Error(), "unreadable") {
+		t.Fatalf("error should say the lock is unreadable, got: %v", err)
+	}
 }

@@ -61,6 +61,10 @@ func (r Record) Size() (n int64) {
 
 type Store struct{ Dir string }
 
+// unreadableLockAge is how old an empty or unparsable lock file must be
+// before it counts as left by a crash rather than being written right now.
+const unreadableLockAge = 5 * time.Second
+
 func (s Store) objectPath(hash string) string {
 	return filepath.Join(s.Dir, "objects", hash[:2], hash)
 }
@@ -70,7 +74,8 @@ func (s Store) recordDir(instance string) string {
 }
 
 // Lock takes the store's write lock, waiting up to wait for another gsm
-// process to finish. A lock left by a process that no longer runs is taken over.
+// process to finish. A lock left by a process that no longer runs, or an
+// unreadable one older than unreadableLockAge, is taken over.
 func (s Store) Lock(wait time.Duration) (unlock func(), err error) {
 	if err := os.MkdirAll(s.Dir, 0o755); err != nil {
 		return nil, err
@@ -100,11 +105,24 @@ func (s Store) Lock(wait time.Duration) (unlock func(), err error) {
 		}
 		var owner proc.State
 		b, rerr := os.ReadFile(path)
-		if rerr == nil && json.Unmarshal(b, &owner) == nil && !proc.Alive(owner) {
+		readable := rerr == nil && json.Unmarshal(b, &owner) == nil
+		if readable && !proc.Alive(owner) {
 			os.Remove(path) // stale: its owner crashed
 			continue
 		}
+		if rerr == nil && !readable {
+			// Empty or partial: a crash between creating and writing the lock,
+			// unless a live process is writing it right now, which takes far
+			// less than unreadableLockAge.
+			if fi, err := os.Stat(path); err == nil && time.Since(fi.ModTime()) > unreadableLockAge {
+				os.Remove(path)
+				continue
+			}
+		}
 		if time.Now().After(deadline) {
+			if !readable {
+				return nil, fmt.Errorf("snapshot store lock %s is unreadable and too recent to be stale; delete it if no gsm process is running", path)
+			}
 			return nil, fmt.Errorf("snapshot store is locked by another gsm process (pid %d)", owner.PID)
 		}
 		time.Sleep(200 * time.Millisecond)
