@@ -1,4 +1,4 @@
-//go:build unix
+//go:build linux
 
 package main
 
@@ -9,7 +9,6 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"syscall"
 	"testing"
@@ -21,7 +20,7 @@ import (
 // GSM_E2E_ROLE: gsm itself, a fake steamcmd that lays out a Palworld-shaped
 // install, and a fake server that writes saves and exits on SIGTERM. Tiny
 // shell shims named steamcmd, steam-run and podman put it on PATH, so gsm
-// runs exactly as in production. The shims need a POSIX shell, hence unix.
+// runs exactly as in production. The shims need a POSIX shell and the fake install is Palworld's Linux one, hence linux.
 
 const fakeWorld = "0/E2EWORLD"
 
@@ -264,9 +263,6 @@ func waitFor(t *testing.T, what string, cond func() bool) {
 }
 
 func TestLifecycleEndToEnd(t *testing.T) {
-	if runtime.GOOS == "darwin" {
-		t.Skip("Palworld has no macOS server")
-	}
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not found")
 	}
