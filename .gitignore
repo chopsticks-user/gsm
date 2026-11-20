@@ -3,26 +3,32 @@
 /gsm.exe
 /dist/
 
-# Go: test binaries, profiles and coverage
+# Go: test binaries, profiles and coverage (anywhere in the tree)
 *.test
 *.prof
-/coverage.*
+*.out
 *.coverprofile
 
 # Dev shell state (GOPATH, module and build caches)
 /.go/
 
-# Nix and direnv
-/result
-/result-*
+# Nix and direnv (result links appear wherever nix build runs, e.g. flake/)
+result
+result-*
 /.direnv/
 
 # taskie worktrees, one per issue
 /.worktrees/
 
-# Editors
+# Claude Code per-user files (the shared .claude/CLAUDE.md is tracked)
+.claude/settings.local.json
+CLAUDE.local.md
+
+# Editors (shared VS Code settings and extension recommendations may be committed)
 .idea/
-.vscode/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
 *.swp
 *.swo
 *~
