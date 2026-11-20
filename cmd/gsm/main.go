@@ -29,6 +29,7 @@ const usage = `usage: gsm [--home DIR] <command> [args]
   gsm config diff|log|commit <name> [-m msg]
   gsm save snapshot <name> [-m msg] | list <name> | restore <name> <id>
   gsm addon add|remove <name> <addon>
+  gsm version | --version
 `
 
 // env is what every command needs.
@@ -72,11 +73,17 @@ func run(args []string) error {
 	top := flag.NewFlagSet("gsm", flag.ContinueOnError)
 	top.Usage = func() { fmt.Fprint(os.Stderr, usage) }
 	homeFlag := top.String("home", "", "data directory (default $GSM_HOME or the per-OS location)")
+	versionFlag := top.Bool("version", false, "print the version and exit")
 	if err := top.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
 		}
 		return err
+	}
+	// Before resolving the home, so the version works without a data dir.
+	if *versionFlag || top.Arg(0) == "version" {
+		fmt.Println(versionString())
+		return nil
 	}
 	if top.NArg() == 0 {
 		fmt.Fprint(os.Stderr, usage)
