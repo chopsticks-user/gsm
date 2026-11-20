@@ -102,8 +102,8 @@ The fix is updating the flake inputs (`flake/flake.lock`), which Dependabot does
 ## Adding a game
 
 1. Add a `game.Game` value in `internal/game/game.go` (like `Palworld`) and append it to the `all` list there: Steam app ID, a launch entry per supported OS (command, config dir and saves dir inside the install, written with `/`), the args template with its defaults, the default port, the stop timeout, and an optional default config file.
-2. If the game needs something the model lacks (a different launcher such as Wine, a config format gsm must edit, a save-flush method), extend the model in `internal/game` and the code that uses it in `cmd/gsm`, keeping existing games unchanged.
-3. Check the definition with `gsm game show <game>`, then run the whole lifecycle against a real install: `create`, `start`, `status`, `stop`, `save restore`, `update`.
+2. If the game needs something the model lacks (a different launcher such as Wine, a config format gsm must edit, a save-flush method), extend the model in `internal/game` and the code that uses it in `cmd/gsm`, keeping existing games unchanged. Extend `validate` in `internal/game/game_test.go` to check the new fields.
+3. Run the tests: `TestBuiltinGamesAreValid` checks every game in `all` (names, platforms, paths that stay inside the install, port, stop timeout, every placeholder has a default and every default is used). Check the result with `gsm game show <game>`, then run the whole lifecycle against a real install: `create`, `start`, `status`, `stop`, `save restore`, `update`.
 4. Document the game in [guide.md](guide.md) and any new limitation in [design.md](design.md#known-limitations).
 
 ## Versioning
