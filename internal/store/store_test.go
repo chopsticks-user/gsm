@@ -152,20 +152,17 @@ func TestStaleLockIsTakenOver(t *testing.T) {
 	unlock2()
 }
 
-// A crash between creating the lock and writing its owner leaves an empty
-// or partial file. Once it is old enough to not be mid-write, it is stale.
-func TestUnreadableLockIsTakenOverWhenOld(t *testing.T) {
+// gsm publishes its lock complete, so an empty or partial lock can only be
+// left by a crash or an older gsm, and is taken over at once.
+func TestUnreadableLockIsTakenOver(t *testing.T) {
 	for name, content := range map[string]string{"empty": "", "garbage": `{"pid":12`} {
 		t.Run(name, func(t *testing.T) {
 			s, _ := setup(t)
-			os.MkdirAll(s.Dir, 0o755)
-			lock := filepath.Join(s.Dir, "lock")
-			write(t, lock, content)
-			old := time.Now().Add(-time.Minute)
-			if err := os.Chtimes(lock, old, old); err != nil {
+			if err := os.MkdirAll(s.Dir, 0o755); err != nil {
 				t.Fatal(err)
 			}
-			unlock, err := s.Lock(time.Second)
+			write(t, filepath.Join(s.Dir, "lock"), content)
+			unlock, err := s.Lock(300 * time.Millisecond)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -174,17 +171,27 @@ func TestUnreadableLockIsTakenOverWhenOld(t *testing.T) {
 	}
 }
 
-// An empty lock that was just created may be a live process about to write
-// its owner, so it must not be stolen right away.
-func TestFreshUnreadableLockIsNotTakenOver(t *testing.T) {
+// The lock is never visible empty, and taking and releasing it leaves only
+// the store's own folders behind.
+func TestLockIsPublishedCompleteAndCleansUp(t *testing.T) {
 	s, _ := setup(t)
-	os.MkdirAll(s.Dir, 0o755)
-	write(t, filepath.Join(s.Dir, "lock"), "")
-	_, err := s.Lock(300 * time.Millisecond)
-	if err == nil {
-		t.Fatal("a freshly created empty lock was taken over")
+	unlock, err := s.Lock(time.Second)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if !strings.Contains(err.Error(), "unreadable") {
-		t.Fatalf("error should say the lock is unreadable, got: %v", err)
+	var owner proc.State
+	b, err := os.ReadFile(filepath.Join(s.Dir, "lock"))
+	if err != nil || json.Unmarshal(b, &owner) != nil || owner.PID != os.Getpid() {
+		t.Fatalf("lock content %q (read error %v) doesn't name this process", b, err)
+	}
+	unlock()
+	entries, err := os.ReadDir(s.Dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), "lock") {
+			t.Errorf("%s left in the store after unlock", e.Name())
+		}
 	}
 }
