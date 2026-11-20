@@ -37,8 +37,8 @@ func cmdGame(e env, args []string) error {
 		}
 		fmt.Printf("name:          %s\ntitle:         %s\nsteam app:     %s\nplatforms:     %s\ndefault port:  %d\n",
 			g.Name, g.Title, g.SteamAppID, strings.Join(g.Platforms(), ", "), g.DefaultPort)
-		fmt.Printf("args:          %s\nsettings:      %s (set with --set k=v)\nstop timeout:  %s\n",
-			strings.Join(g.Args, " "), strings.Join(g.Placeholders(), ", "), g.StopTimeout)
+		fmt.Printf("args:          %s\nsettings:      %s\nstop timeout:  %s\n",
+			strings.Join(g.Args, " "), settingsLine(g), g.StopTimeout)
 		return nil
 	}
 	return errors.New("usage: gsm game list | show <game>")
@@ -241,4 +241,19 @@ func cmdDoctor(e env, args []string) error {
 		return fmt.Errorf("%d problem(s) found", len(problems))
 	}
 	return nil
+}
+
+// settingsLine describes what an instance of g can set: the args
+// placeholders through --set, except port, which has its own flag.
+func settingsLine(g game.Game) string {
+	var keys []string
+	for _, k := range g.Placeholders() {
+		if k != "port" {
+			keys = append(keys, k)
+		}
+	}
+	if len(keys) == 0 {
+		return "none; port with --port"
+	}
+	return strings.Join(keys, ", ") + " (set with --set k=v); port with --port"
 }
