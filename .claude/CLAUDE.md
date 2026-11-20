@@ -47,7 +47,7 @@ Go is not installed globally; use the flake's dev shell (details in `docs/develo
 
 ## Workflow
 
-GitHub: `chopsticks-user/gsm` (private until v0.1.0). Base branch is `main`; patches go through `release-X.Y` branches. The issue/PR workflow and the versioning policy are in `docs/development.md`. Every open issue belongs to a milestone (see `docs/roadmap.md`) or is listed there as not planned.
+GitHub: `chopsticks-user/gsm` (public). Base branch is `main`, protected by a ruleset (PR with passing CI, merge commits only; release tags admin-only); patches go through `release-X.Y` branches. The issue/PR workflow and the versioning policy are in `docs/development.md`. Every open issue belongs to a milestone (see `docs/roadmap.md`) or is listed there as not planned.
 
 Labels in use: `type:bug`, `type:feature`, `type:chore`, `type:docs` (one per issue); `P0` (outage, data loss, security) to `P3` (minor), one per issue; `needs-info`; `ready`.
 
