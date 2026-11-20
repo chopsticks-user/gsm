@@ -4,7 +4,7 @@ How to build, test and change gsm. For how the code is organized, see [architect
 
 ## Dev environment
 
-The repo ships a Nix flake with the toolchain: Go, gopls, gcc (the race detector needs cgo) and govulncheck.
+The repo ships a Nix flake with the toolchain: Go, gopls, gcc (the race detector needs cgo), govulncheck and just.
 
 ```
 nix develop path:./flake            # a shell with the toolchain
@@ -20,6 +20,24 @@ Entered from inside the repo, the shell keeps Go's module and build caches in a 
 Without Nix, any Go matching the `go` line in `go.mod` works; you'll also need gcc for `-race`.
 
 Tools gsm calls at runtime come from the host, not the flake: `git`, `steamcmd`, and on NixOS `steam-run`; `podman` for the playit addon.
+
+## Common commands
+
+The `justfile` has recipes for the commands below; inside the dev shell run `just <recipe>`, or from outside it `nix develop path:./flake -c just <recipe>`. `just` alone lists them.
+
+| Recipe | Runs |
+|---|---|
+| `just build` | `go build -o build/ ./cmd/gsm` |
+| `just test` | `go test -race ./...` |
+| `just verify` | `scripts/verify.sh` (what CI runs) |
+| `just fmt` | `go fmt ./...` |
+| `just vuln` | `govulncheck -test ./...` for Linux, Windows and macOS, as CI does |
+| `just smoke [--hold]` | `scripts/smoke-palworld.sh` |
+| `just release-build <version>` | `scripts/release-build.sh` |
+| `just release-notes <version>` | `scripts/release-notes.sh` |
+| `just clean` | removes `build/` |
+
+The sections below give the full commands and what each one does.
 
 ## Build
 
