@@ -98,14 +98,15 @@ gsm follows [Semantic Versioning](https://semver.org) with a `v` prefix: `v0.1.0
 | Minor `0.X.0` / `1.X.0` | one milestone's capability; may change the CLI or on-disk formats, noted in the CHANGELOG | new features, backwards compatible |
 | Patch `0.x.Y` / `1.x.Y` | fixes only | fixes only |
 
-**Patch rule.** A patch fixes a regression or a bug in a released feature. It never adds a feature or changes the CLI or an on-disk format. Cut one when a `P0` or `P1` fix (data loss, a broken core command, security) lands; smaller fixes wait for the next minor. Patches have no milestones.
+**Patch rule.** A patch fixes a regression or a bug in a released feature. It never adds a feature or changes the CLI or an on-disk format. Cut one when a fix for a `P0` or `P1` issue lands (see [Labels](#labels)); `P2` and `P3` fixes wait for the next minor. Patches have no milestones.
 
 Patches come from a release branch, not `main`, because `main` already carries unfinished work for the next minor:
 
 1. The fix goes to `main` first, through the normal issue and pull request.
-2. The first patch of a minor creates its branch from the last tag: `git switch -c release-0.1 v0.1.0` and push it. Later patches reuse it.
-3. Cherry-pick the fix onto the release branch (`git cherry-pick -x <commit>`) in a pull request against `release-0.X`, with a CHANGELOG section for the patch.
-4. Tag the release branch's merge commit and push the tag, as in [Releasing](#releasing).
+2. The first patch of a minor creates its branch, `release-X.Y`, from that minor's last tag, for example `git switch -c release-0.1 v0.1.0`, and pushes it. Later patches of the same minor reuse it.
+3. Cherry-pick the fix onto the release branch (`git cherry-pick -x <commit>`) in a pull request against `release-X.Y`, and add the patch's CHANGELOG section there.
+4. Tag the release branch's merge commit and push the tag, as in [Releasing](#releasing). The release workflow accepts a patch tag `vX.Y.Z` on its own `release-X.Y` branch, and doesn't mark it as the latest release unless it's also on `main`.
+5. Bring the CHANGELOG section to `main` by cherry-picking that one commit, so `main` keeps the full history and the section is written once.
 
 **Milestones.**
 
@@ -118,10 +119,10 @@ Patches come from a release branch, not `main`, because `main` already carries u
 
 What a version number means is in [Versioning](#versioning). To cut a release:
 
-1. For a minor release: every issue in its [milestone](https://github.com/chopsticks-user/gsm/milestones) is closed, its exit criteria in [roadmap.md](roadmap.md) hold, and CI is green on `main`. For a patch: the fixes are cherry-picked onto `release-0.X` (see [Versioning](#versioning)).
+1. For a minor release: every issue in its [milestone](https://github.com/chopsticks-user/gsm/milestones) is closed, its exit criteria in [roadmap.md](roadmap.md) hold, and CI is green on `main`. For a patch: the fixes are cherry-picked onto `release-X.Y` (see [Versioning](#versioning)).
 2. Run the smoke test with a game client: `nix develop path:./flake -c scripts/smoke-palworld.sh --hold`, and connect to the server on UDP 8211 while it holds.
-3. In `CHANGELOG.md`, rename `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD`, start a new empty `## [Unreleased]` above it, update the links at the bottom, and merge that through a pull request. For a patch, add its section on the release branch and the same section to `main`'s CHANGELOG, so `main` keeps the full history. A pre-release (`vX.Y.Z-rc.N`) can skip this: without a section of its own, its notes come from `[Unreleased]`.
-4. Tag the merge commit on `main` (or on `release-0.X` for a patch) and push the tag:
+3. In `CHANGELOG.md`, rename `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD`, start a new empty `## [Unreleased]` above it, update the links at the bottom, and merge that through a pull request. For a patch, the section goes on the release branch first (steps in [Versioning](#versioning)). A pre-release (`vX.Y.Z-rc.N`) can skip this: without a section of its own, its notes come from `[Unreleased]`.
+4. Tag the merge commit on `main` (or on `release-X.Y` for a patch) and push the tag:
    ```
    git tag -a vX.Y.Z -m "gsm vX.Y.Z"
    git push origin vX.Y.Z
@@ -129,7 +130,7 @@ What a version number means is in [Versioning](#versioning). To cut a release:
 5. `.github/workflows/release.yml` then verifies the tagged commit, builds the binaries (`scripts/release-build.sh`), takes the notes from the version's CHANGELOG section (`scripts/release-notes.sh`, which fails if the section is missing) and publishes the GitHub release with every binary and `SHA256SUMS`. A tag with a `-` suffix becomes a pre-release. The release is created only after everything is built, and never overwrites an existing one.
 6. Check the release page, download one binary, verify it against `SHA256SUMS`, and run `gsm version`.
 
-If the workflow fails, fix the problem on `main`, delete any release it left behind (`gh release delete vX.Y.Z`, in case an asset upload failed after the release was created), delete the tag (`git push --delete origin vX.Y.Z`, `git tag -d vX.Y.Z`), and tag again. The workflow also refuses a tag that isn't on `main` or a `release-*` branch.
+If the workflow fails, fix the problem on `main` (and, for a patch, cherry-pick the fix onto `release-X.Y`), delete any release it left behind (`gh release delete vX.Y.Z`, in case an asset upload failed after the release was created), delete the tag (`git push --delete origin vX.Y.Z`, `git tag -d vX.Y.Z`), and tag again. The workflow also refuses a tag that's neither on `main` nor a patch on its own `release-X.Y` branch.
 
 To try a release build locally: `nix develop path:./flake -c scripts/release-build.sh v0.0.0-test`.
 
@@ -152,7 +153,10 @@ Every change that will be committed goes through a GitHub issue and a pull reque
 | `type:feature` | new behavior |
 | `type:chore` | maintenance: refactors, tooling, tech debt |
 | `type:docs` | documentation only |
-| `P0` to `P3` | priority, from outage or data loss (`P0`) to minor (`P3`) |
+| `P0` | outage, data loss or security hole: drop everything |
+| `P1` | a major feature broken with no workaround |
+| `P2` | degraded, but a workaround exists |
+| `P3` | minor or cosmetic |
 | `needs-info` | waiting on answers from the reporter |
 | `ready` | specified well enough to implement |
 

@@ -2,7 +2,7 @@
 
 This guide follows one user from an empty machine to two running Palworld servers, with snapshots, a restore and an update, showing each command's output and what it does. For how each step works underneath, follow the links to [architecture.md](architecture.md).
 
-gsm currently supports Palworld on Linux and Windows. It implements `doctor`, `game`, `create`, `list`, `start`, `stop`, `restart`, `run`, `status`, `logs`, `update`, `config diff|log|commit`, `save snapshot|list|restore`, `version` and the `playit` addon. What's planned is in [design.md](roadmap.md).
+gsm currently supports Palworld on Linux and Windows. It implements `doctor`, `game`, `create`, `list`, `start`, `stop`, `restart`, `run`, `status`, `logs`, `update`, `config diff|log|commit`, `save snapshot|list|restore`, `version` and the `playit` addon. What's planned is in [roadmap.md](roadmap.md).
 
 ## Step 0: Get gsm
 

@@ -37,7 +37,7 @@ Everything a long-running server needs so its owner never has to clean up by han
 
 **Why here:** with two games working, the next most valuable thing is that a server can run for months without the disk filling up or snapshots missing progress.
 
-**Done when:** nothing in `$GSM_HOME` grows without bound, a live snapshot is consistent, an existing server's data can be imported, and every instance and config command in the design exists.
+**Done when:** nothing in `$GSM_HOME` grows without bound, a live snapshot is consistent, an existing server's data can be imported, and `remove`, `import`, `config edit`, `config restore` and `update --all` exist (`config remote` comes with the other remotes in v0.4.0).
 
 ## v0.4.0: Survive losing the machine
 
