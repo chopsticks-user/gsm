@@ -118,3 +118,26 @@ func TestWriteAtomic(t *testing.T) {
 		t.Fatalf("temp files left behind: %v", entries)
 	}
 }
+
+// A copy that fails partway (here: the source is a directory, so reading it
+// fails after the destination was opened) must leave the old destination
+// intact and no temp file behind.
+func TestCopyFileFailureKeepsOldDestination(t *testing.T) {
+	d := t.TempDir()
+	dst := filepath.Join(d, "PalWorldSettings.ini")
+	write(t, dst, "old settings")
+	src := filepath.Join(d, "src")
+	if err := os.Mkdir(src, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := CopyFile(src, dst); err == nil {
+		t.Fatal("copying a directory succeeded")
+	}
+	if got := read(t, dst); got != "old settings" {
+		t.Fatalf("destination = %q after a failed copy, want the old content", got)
+	}
+	entries, _ := os.ReadDir(d)
+	if len(entries) != 2 {
+		t.Fatalf("leftover files after a failed copy: %v", entries)
+	}
+}

@@ -341,7 +341,7 @@ podman run -d --rm --name gsm-<instance>-playit --network=host \
 
 ## Atomic writes
 
-`WriteAtomic` (for `state.json`, `instance.toml`, `.gitignore` and snapshot records) and the object writer follow one pattern:
+`WriteAtomic` (for `state.json`, `instance.toml`, `.gitignore` and snapshot records), `CopyFile` (the seeded config, `steamclient.so`) and the object writer follow one pattern:
 
 1. create a temp file in the same folder as the destination, so the rename stays on one filesystem
 2. write, then `fsync`
@@ -351,7 +351,7 @@ podman run -d --rm --name gsm-<instance>-playit --network=host \
 
 Readers see the complete old file or the complete new one. The containing folder isn't `fsync`ed after the rename, so a power cut might lose the rename itself (the old file remains): the latest snapshot record could be lost, never corrupted.
 
-Other writes are not atomic, on purpose or not yet: `logs/server.log` is appended; restore staging files are verified by hash before the swap; the lock file is created with `O_EXCL` and written in place; and `CopyFile` (the seeded config, `steamclient.so`) truncates and writes in place ([#25](https://github.com/chopsticks-user/gsm/issues/25)).
+Other writes are not atomic, on purpose or not yet: `logs/server.log` is appended; restore staging files are verified by hash before the swap; and the lock file is created with `O_EXCL` and written in place.
 
 ## Crash safety summary
 

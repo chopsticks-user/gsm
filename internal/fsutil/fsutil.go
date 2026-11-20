@@ -67,13 +67,23 @@ func sameDir(a, b string) bool {
 // WriteAtomic writes data to path through a temp file and a rename, so a
 // crash leaves either the old file or the new one, never half of one.
 func WriteAtomic(path string, data []byte, perm fs.FileMode) error {
+	return writeAtomicFrom(path, perm, func(w io.Writer) error {
+		_, err := w.Write(data)
+		return err
+	})
+}
+
+// writeAtomicFrom writes path through a temp file in the same directory,
+// filled by fill, then renames it into place, so readers see the old file
+// or the complete new one.
+func writeAtomicFrom(path string, perm fs.FileMode, fill func(io.Writer) error) error {
 	f, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".tmp*")
 	if err != nil {
 		return err
 	}
 	tmp := f.Name()
 	defer os.Remove(tmp) // no-op after a successful rename
-	if _, err := f.Write(data); err != nil {
+	if err := fill(f); err != nil {
 		f.Close()
 		return err
 	}
@@ -90,8 +100,8 @@ func WriteAtomic(path string, data []byte, perm fs.FileMode) error {
 	return os.Rename(tmp, path)
 }
 
-// CopyFile copies src to dst. Copying a file onto itself (directly or through
-// a symlinked directory) is a no-op: opening dst for writing would truncate src.
+// CopyFile copies src to dst atomically (see WriteAtomic). Copying a file onto
+// itself (directly or through a symlinked directory) is a no-op.
 func CopyFile(src, dst string) error {
 	si, err := os.Stat(src)
 	if err != nil {
@@ -108,15 +118,10 @@ func CopyFile(src, dst string) error {
 		return err
 	}
 	defer in.Close()
-	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, si.Mode().Perm())
-	if err != nil {
+	return writeAtomicFrom(dst, si.Mode().Perm(), func(w io.Writer) error {
+		_, err := io.Copy(w, in)
 		return err
-	}
-	if _, err := io.Copy(out, in); err != nil {
-		out.Close()
-		return err
-	}
-	return out.Close()
+	})
 }
 
 // IsEmptyDir reports whether dir has no entries. A missing dir counts as empty.
