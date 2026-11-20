@@ -33,7 +33,7 @@ Each fact lives in one doc. The rules below are short forms of decisions in thos
 
 ## Tooling
 
-Go is not installed globally; use the flake's dev shell (details in `docs/development.md`):
+Go is not installed globally; use the flake's dev shell (details in `docs/development.md`). The `justfile` wraps these: `just build`, `test`, `verify`, `fmt`, `cross`, `vuln`, `smoke`, `release-build <v>`, `release-notes <v>`, `clean` (inside the shell, or `nix develop path:./flake -c just <recipe>`):
 
 - Build (all output goes to `build/`): `nix develop path:./flake -c go build -o build/ ./cmd/gsm`
 - Release binaries into `build/release/`: `nix develop path:./flake -c scripts/release-build.sh v1.2.3`

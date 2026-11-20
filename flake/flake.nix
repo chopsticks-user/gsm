@@ -37,6 +37,7 @@
             gopls
             gcc # go test -race needs cgo
             govulncheck # run in CI; needs the network for the vulnerability database
+            just # runs the recipes in justfile
           ];
 
           # keep Go state in the repo instead of ~/go and ~/.cache/go-build
