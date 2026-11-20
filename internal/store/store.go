@@ -59,7 +59,12 @@ func (r Record) Size() (n int64) {
 	return n
 }
 
-type Store struct{ Dir string }
+type Store struct {
+	Dir string
+	// beforeHash, if set, runs right before a file is hashed; tests use it to
+	// rewrite the file at the worst moment.
+	beforeHash func(path string)
+}
 
 func (s Store) objectPath(hash string) string {
 	return filepath.Join(s.Dir, "objects", hash[:2], hash)
@@ -144,18 +149,18 @@ func (s Store) Snapshot(dir string, meta Record) (Record, error) {
 		if !d.Type().IsRegular() {
 			return fmt.Errorf("%s is not a regular file; refusing to snapshot it silently", path)
 		}
-		fi, err := d.Info()
-		if err != nil {
-			return err
+		// Size and mode come from the read that was hashed, not from the walk:
+		// a running server may rewrite or replace the file in between.
+		hash, size, mode, err := s.putObject(path)
+		if errors.Is(err, fs.ErrNotExist) {
+			// Removed since the walk listed it (a temp file renamed away).
+			return fmt.Errorf("%s changed while it was being saved; try again", path)
 		}
-		// The size comes from the bytes that were hashed, not from fi: a
-		// running server may rewrite the file in between.
-		hash, size, err := s.putObject(path)
 		if err != nil {
 			return err
 		}
 		rel, _ := filepath.Rel(dir, path)
-		rec.Files = append(rec.Files, File{Path: filepath.ToSlash(rel), Size: size, Mode: fi.Mode().Perm(), Hash: hash})
+		rec.Files = append(rec.Files, File{Path: filepath.ToSlash(rel), Size: size, Mode: mode, Hash: hash})
 		return nil
 	})
 	if err != nil {
@@ -178,40 +183,38 @@ func newID() string {
 	return hex.EncodeToString(b)
 }
 
-// putObject stores path's contents and returns their hash. Files already in
-// the store are only read once, to hash them.
-// beforeHash runs right before a file is hashed; tests use it to rewrite the
-// file at the worst moment.
-var beforeHash = func(path string) {}
-
-// putObject stores path in the object store and returns its hash and size.
-func (s Store) putObject(path string) (string, int64, error) {
-	beforeHash(path)
-	hash, size, err := hashFile(path)
+// putObject stores path's contents and returns their hash, size and mode,
+// all from one open of the file. Files already in the store are only read
+// once, to hash them.
+func (s Store) putObject(path string) (string, int64, fs.FileMode, error) {
+	if s.beforeHash != nil {
+		s.beforeHash(path)
+	}
+	hash, size, mode, err := hashFile(path)
 	if err != nil {
-		return "", 0, err
+		return "", 0, 0, err
 	}
 	obj := s.objectPath(hash)
 	if _, err := os.Stat(obj); err == nil {
-		return hash, size, nil
+		return hash, size, mode, nil
 	}
 	if err := os.MkdirAll(filepath.Dir(obj), 0o755); err != nil {
-		return "", 0, err
+		return "", 0, 0, err
 	}
 	in, err := os.Open(path)
 	if err != nil {
-		return "", 0, err
+		return "", 0, 0, err
 	}
 	defer in.Close()
 	tmp, err := os.CreateTemp(filepath.Dir(obj), ".tmp-*")
 	if err != nil {
-		return "", 0, err
+		return "", 0, 0, err
 	}
 	defer os.Remove(tmp.Name()) // no-op after the rename
 	enc, err := zstd.NewWriter(tmp)
 	if err != nil {
 		tmp.Close()
-		return "", 0, err
+		return "", 0, 0, err
 	}
 	// Hash again while compressing: if the file changed since the first
 	// read, the object would not match its name.
@@ -219,39 +222,44 @@ func (s Store) putObject(path string) (string, int64, error) {
 	if _, err := io.Copy(enc, io.TeeReader(in, h)); err != nil {
 		enc.Close()
 		tmp.Close()
-		return "", 0, err
+		return "", 0, 0, err
 	}
 	if err := enc.Close(); err != nil {
 		tmp.Close()
-		return "", 0, err
+		return "", 0, 0, err
 	}
 	if err := tmp.Sync(); err != nil {
 		tmp.Close()
-		return "", 0, err
+		return "", 0, 0, err
 	}
 	if err := tmp.Close(); err != nil {
-		return "", 0, err
+		return "", 0, 0, err
 	}
 	if hex.EncodeToString(h.Sum(nil)) != hash {
-		return "", 0, fmt.Errorf("%s changed while it was being saved; try again", path)
+		return "", 0, 0, fmt.Errorf("%s changed while it was being saved; try again", path)
 	}
-	return hash, size, os.Rename(tmp.Name(), obj)
+	return hash, size, mode, os.Rename(tmp.Name(), obj)
 }
 
-// hashFile returns the SHA-256 of path and the number of bytes hashed, from
-// one read, so the two always describe the same version of the file.
-func hashFile(path string) (string, int64, error) {
+// hashFile returns the SHA-256 of path, the number of bytes hashed and the
+// file's permission bits, all from one open file, so they describe the same
+// version of it even if it is replaced meanwhile.
+func hashFile(path string) (string, int64, fs.FileMode, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return "", 0, err
+		return "", 0, 0, err
 	}
 	defer f.Close()
+	fi, err := f.Stat()
+	if err != nil {
+		return "", 0, 0, err
+	}
 	h := sha256.New()
 	n, err := io.Copy(h, f)
 	if err != nil {
-		return "", 0, err
+		return "", 0, 0, err
 	}
-	return hex.EncodeToString(h.Sum(nil)), n, nil
+	return hex.EncodeToString(h.Sum(nil)), n, fi.Mode().Perm(), nil
 }
 
 // List returns an instance's snapshots, oldest first.
