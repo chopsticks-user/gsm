@@ -177,7 +177,7 @@ The ID is 8 random hex characters. The file name starts with the UTC time, so a 
 5. **Assign the port:** the requested port (or the game's default), moved up until no other instance uses it. Only gsm's own instances are checked, not other programs.
 6. **Make the layout:** `config/`, `saves/`, `server/`, `logs/`.
 7. **Install** with `steamcmd +force_install_dir <abs server/> +login anonymous +app_update <app> validate +quit`, output streamed. steamcmd's exit code is unreliable (it can exit 0 without installing), so gsm also requires `server/steamapps/appmanifest_<app>.acf` with a `"buildid"` line.
-8. **Seed the config:** if `config/` is empty and the install has the game's default config, copy it in.
+8. **Seed the config:** if `config/` is empty and the install has the game's default config, copy it in. Palworld empties an unedited copy of its defaults on the first start (an edited one survives), so don't re-seed an empty `PalWorldSettings.ini`: Palworld would empty it again on every start.
 9. **Link the data into the install** with `LinkTo` (below).
 10. **Write `instance.toml` and `.gitignore`**, `git init`, and commit `create <name>`.
 
