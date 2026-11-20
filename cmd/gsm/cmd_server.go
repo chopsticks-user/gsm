@@ -418,6 +418,15 @@ func cmdUpdate(e env, args []string) error {
 	if err := autoSnapshot(e, i, "update"); err != nil {
 		return err
 	}
+	// steamcmd validate may write stock files through the config links;
+	// commit first so no config edit is lost from history.
+	repo, err := gitrepo.Init(i.Dir)
+	if err != nil {
+		return err
+	}
+	if _, err := repo.CommitAll("auto: before update"); err != nil {
+		return err
+	}
 	before, _ := steam.BuildID(i.ServerDir(), g.SteamAppID)
 	if err := steam.Install(i.ServerDir(), g.SteamAppID, os.Stdout); err != nil {
 		return err

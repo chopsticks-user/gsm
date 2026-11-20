@@ -74,7 +74,7 @@ Paths are written with `/` and converted with `filepath.FromSlash`, so one defin
 
 **Args templates.** Each argument may contain `{name}` placeholders, filled from the game defaults overridden by the instance's settings, plus the port. An unknown placeholder is an error, never an empty string, so a typo can't silently reach the server. The placeholder names (except `port`, which has its own flag) are exactly what `create --set` accepts.
 
-**Config files.** A launch entry names either a config folder (`ConfigDir`, like Palworld) or a single config file (`ConfigFile`) for servers that keep their whole config in one file in the install. That file lives in `config/<file name>`, and the install gets a file symlink to it (`LinkFileTo`, below). If the game sets `ConfigPortKey`, the file is JSON and gsm owns only that top-level key: before every start (and on `create` and `update`) it sets the key to the instance's port, rewriting only the value's bytes so the rest of the file and its formatting stay as they were and config history shows only real changes (`fsutil.SetJSONNumber`). A missing file is created holding just that key, for the server to fill in on its first start; a file that is not a valid JSON object fails with the parse error and is left alone. A hand edit of the port is put back on the next start, since `instance.toml` is the source of the port.
+**Config files.** A launch entry names either a config folder (`ConfigDir`, like Palworld) or a single config file (`ConfigFile`) for servers that keep their whole config in one file in the install. That file lives in `config/<file name>`, and the install gets a file symlink to it (`LinkFileTo`, below). If the game sets `ConfigPortKey`, the file is JSON and gsm owns only that top-level key: before every start (and on `create` and `update`) it sets the key to the instance's port, rewriting only the value's bytes so the rest of the file and its formatting stay as they were and config history shows only real changes (`fsutil.SetJSONNumber`). A duplicated key gets every copy set, since parsers differ on which one wins, and a leading UTF-8 BOM is kept. A missing file is created holding just that key, for the server to fill in on its first start; a file that is not a valid JSON object (`null` included) fails with the parse error and is left alone. A hand edit of the port is put back on the next start, since `instance.toml` is the source of the port.
 
 `internal/game/game_test.go` checks every built-in definition (`TestBuiltinGamesAreValid`).
 
@@ -202,7 +202,7 @@ If any step fails, gsm deletes `instances/<name>` entirely: nothing in it belong
 
 The "both have files" case is deliberate: gsm never guesses which copy of a world is the right one. `start` and `update` call `LinkTo` again, since steamcmd `validate` could replace a link; it is a no-op when the links are fine.
 
-`LinkFileTo(path, target)` is the same for one file: nothing at `path` creates the link (`target` may not exist yet; the server creates it through the link), a correct link is kept, a wrong link is replaced, a real file moves to `target` if `target` doesn't exist, and if both exist nothing is touched. It always makes a symlink. On Windows a file symlink needs Developer Mode or admin rights, and gsm fails with that message rather than falling back to a hard link: gsm's atomic writes and git checkouts replace the file, which would silently split a hard link into two diverging copies.
+`LinkFileTo(path, target)` is the same for one file: nothing at `path` creates the link (`target` may not exist yet; the server creates it through the link), a correct link is kept, a wrong link is replaced, a real file moves to `target` if `target` doesn't exist, and if both exist nothing is touched. It always makes a symlink, first under a temp name (`<path>.gsm-link`) and then renamed into place, so a failed symlink changes nothing and a crash between moving the file and placing the link is finished by the next call. On Windows a file symlink needs Developer Mode or admin rights, and gsm fails with that message rather than falling back to a hard link: gsm's atomic writes and git checkouts replace the file, which would silently split a hard link into two diverging copies.
 
 ## Config history
 
@@ -333,7 +333,7 @@ The link in `server/` points at the path `instances/<name>/saves`, so after the 
 
 ## Updates
 
-`update` refuses while the server runs, then: a snapshot with trigger `update` (recording the old build), steamcmd with `validate` on `server/`, `LinkTo` on both links (it stops if steamcmd replaced a link with a real folder holding files), and the build ID read before and after to report `already up to date` or the change.
+`update` refuses while the server runs, then: a snapshot with trigger `update` (recording the old build), a config commit (`auto: before update`, since `validate` may write stock files through the config link), steamcmd with `validate` on `server/`, `LinkTo` (or `LinkFileTo`) on both links (it stops if steamcmd replaced a link with a real folder holding files), and the build ID read before and after to report `already up to date` or the change.
 
 ## Addons
 

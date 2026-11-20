@@ -41,7 +41,10 @@ func cmdGame(e env, args []string) error {
 		fmt.Printf("args:          %s\nsettings:      %s\nstop timeout:  %s\n",
 			strings.Join(g.Args, " "), settingsLine(g), g.StopTimeout)
 		if f := g.Launch[runtime.GOOS].ConfigFile; f != "" {
-			fmt.Printf("config file:   %s (port in key %q)\n", f, g.ConfigPortKey)
+			fmt.Printf("config file:   %s\n", f)
+		}
+		if g.ConfigPortKey != "" {
+			fmt.Printf("port key:      %s (set to the instance's port before each start)\n", g.ConfigPortKey)
 		}
 		return nil
 	}

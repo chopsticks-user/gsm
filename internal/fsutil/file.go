@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 )
 
@@ -22,17 +23,15 @@ func LinkFileTo(path, target string) error {
 			return err
 		}
 	}
+	move := false
 	fi, err := os.Lstat(path)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
 	case err != nil:
 		return err
 	case fi.Mode()&fs.ModeSymlink != 0:
-		if dest, err := os.Readlink(path); err == nil && sameDir(dest, target) {
+		if dest, err := os.Readlink(path); err == nil && samePath(dest, target) {
 			return nil
-		}
-		if err := os.Remove(path); err != nil { // removes the link only
-			return err
 		}
 	case fi.Mode().IsRegular():
 		if _, err := os.Lstat(target); err == nil {
@@ -40,18 +39,32 @@ func LinkFileTo(path, target string) error {
 		} else if !errors.Is(err, fs.ErrNotExist) {
 			return err
 		}
-		if err := os.Rename(path, target); err != nil {
-			return err
-		}
+		move = true
 	default:
 		return fmt.Errorf("%s is not a file", path)
 	}
-	if err := os.Symlink(target, path); err != nil {
+	// Make the link under a temp name first, so a failure (no symlink rights
+	// on Windows) changes nothing. Renaming it into place also replaces a
+	// wrong link, and a crash in between is repaired by the next call.
+	tmp := path + ".gsm-link"
+	os.Remove(tmp) // left by a crash
+	if err := os.Symlink(target, tmp); err != nil {
 		if runtime.GOOS == "windows" {
 			// No hard-link fallback: gsm's atomic writes and git checkouts replace
 			// the file, which would silently split a hard link into two copies.
 			return fmt.Errorf("%w (a file symlink on Windows needs Developer Mode or admin rights)", err)
 		}
+		return err
+	}
+	if move {
+		// shortcut: Rename fails across filesystems; copy then delete if server/ and data ever live on different disks.
+		if err := os.Rename(path, target); err != nil {
+			os.Remove(tmp)
+			return err
+		}
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		os.Remove(tmp)
 		return err
 	}
 	return nil
@@ -85,16 +98,24 @@ func SetJSONNumber(path, key string, n int) error {
 	return WriteAtomic(path, out, fi.Mode().Perm())
 }
 
-// setTopLevel returns b with the value of the top-level key replaced by
-// val, or val inserted as the first member if the key is missing.
+var utf8BOM = []byte("\xef\xbb\xbf")
+
+// setTopLevel returns b with every value of the top-level key replaced by
+// val (parsers differ on which duplicate wins), or val inserted as the
+// first member if the key is missing. A leading UTF-8 BOM is kept.
 func setTopLevel(b []byte, key string, val []byte) ([]byte, error) {
-	var obj map[string]json.RawMessage
-	if err := json.Unmarshal(b, &obj); err != nil {
-		return nil, fmt.Errorf("not a valid JSON object: %w", err)
+	body := bytes.TrimPrefix(b, utf8BOM)
+	skip := len(b) - len(body)
+	if err := json.Unmarshal(body, new(any)); err != nil {
+		return nil, fmt.Errorf("not valid JSON: %w", err)
 	}
-	dec := json.NewDecoder(bytes.NewReader(b))
-	dec.Token() // "{", checked by Unmarshal above
-	open := int(dec.InputOffset())
+	dec := json.NewDecoder(bytes.NewReader(body))
+	if t, _ := dec.Token(); t != json.Delim('{') {
+		return nil, errors.New("not a JSON object")
+	}
+	open := skip + int(dec.InputOffset())
+	var spans [][2]int
+	members := 0
 	for dec.More() {
 		t, err := dec.Token()
 		if err != nil {
@@ -104,16 +125,23 @@ func setTopLevel(b []byte, key string, val []byte) ([]byte, error) {
 		if err := dec.Decode(&raw); err != nil {
 			return nil, err
 		}
+		members++
 		if t == key {
-			end := int(dec.InputOffset())
-			start := end - len(raw)
-			return append(append(append([]byte{}, b[:start]...), val...), b[end:]...), nil
+			end := skip + int(dec.InputOffset())
+			spans = append(spans, [2]int{end - len(raw), end})
 		}
 	}
-	k, _ := json.Marshal(key)
-	member := fmt.Sprintf("\n  %s: %s", k, val)
-	if len(obj) > 0 {
-		member += ","
+	if len(spans) == 0 {
+		k, _ := json.Marshal(key)
+		member := fmt.Sprintf("\n  %s: %s", k, val)
+		if members > 0 {
+			member += ","
+		}
+		return slices.Concat(b[:open], []byte(member), b[open:]), nil
 	}
-	return append(append(append([]byte{}, b[:open]...), member...), b[open:]...), nil
+	out := b
+	for i := len(spans) - 1; i >= 0; i-- { // last first, so earlier offsets hold
+		out = slices.Concat(out[:spans[i][0]], val, out[spans[i][1]:])
+	}
+	return out, nil
 }

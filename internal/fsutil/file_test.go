@@ -99,6 +99,10 @@ func TestSetJSONNumber(t *testing.T) {
 		// Missing key: inserted first.
 		{"{\n  \"name\": \"x\"\n}\n", "{\n  \"queryPort\": 15700,\n  \"name\": \"x\"\n}\n"},
 		{"{}", "{\n  \"queryPort\": 15700}"},
+		// Duplicates: all set, since parsers differ on which one wins.
+		{`{"queryPort":1,"a":2,"queryPort":3}`, `{"queryPort":15700,"a":2,"queryPort":15700}`},
+		// A UTF-8 BOM (Windows editors) is kept.
+		{"\xef\xbb\xbf{\"queryPort\": 1}", "\xef\xbb\xbf{\"queryPort\": 15700}"},
 	} {
 		write(t, path, c.in)
 		if err := SetJSONNumber(path, "queryPort", 15700); err != nil {
@@ -109,7 +113,7 @@ func TestSetJSONNumber(t *testing.T) {
 		}
 	}
 	// Invalid: error naming the file, file untouched.
-	for _, bad := range []string{`{"queryPort": 1,}`, `[1]`, ``} {
+	for _, bad := range []string{`{"queryPort": 1,}`, `[1]`, ``, `null`, `"x"`} {
 		write(t, path, bad)
 		if err := SetJSONNumber(path, "queryPort", 15700); err == nil || !strings.Contains(err.Error(), path) {
 			t.Errorf("%q: err = %v", bad, err)
@@ -117,5 +121,28 @@ func TestSetJSONNumber(t *testing.T) {
 		if read(t, path) != bad {
 			t.Errorf("%q: file changed", bad)
 		}
+	}
+}
+
+// A crash can leave the temp link behind, with the real file already moved
+// and path missing; the next call finishes the job.
+func TestLinkFileToRecoversFromCrash(t *testing.T) {
+	d := t.TempDir()
+	path, target := filepath.Join(d, "server", "game.json"), filepath.Join(d, "config", "game.json")
+	write(t, target, "mine")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, path+".gsm-link"); err != nil {
+		t.Fatal(err)
+	}
+	if err := LinkFileTo(path, target); err != nil {
+		t.Fatal(err)
+	}
+	if read(t, path) != "mine" {
+		t.Fatal("not linked")
+	}
+	if _, err := os.Lstat(path + ".gsm-link"); err == nil {
+		t.Fatal("temp link left behind")
 	}
 }
