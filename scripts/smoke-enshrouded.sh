@@ -49,9 +49,12 @@ listening() { ss -uln | grep -q ":$1 "; }
 # The world save, not the server's rotating copies in backup/.
 world() { find "$inst/saves" -type f -not -path '*/backup/*' -print -quit; }
 has_save() { [ -n "$(world)" ]; }
+# One hash over every world file (the world and its companions), backups excluded.
+world_hash() { find "$inst/saves" -type f -not -path '*/backup/*' -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1; }
 port_in_json() { grep -Eq "\"queryPort\"[[:space:]]*:[[:space:]]*$1([^0-9]|$)" "$2"; }
 
 command -v ss >/dev/null || fail "ss not found (iproute2)"
+command -v wine >/dev/null || fail "wine not found"
 
 step "build gsm"
 go build -o "$gsm" ./cmd/gsm
@@ -84,29 +87,35 @@ touch "$marker"
 sleep 1
 g stop smoke
 g status | grep 'smoke .* stopped' >/dev/null || fail "status doesn't show smoke stopped"
-[ -n "$(find "$inst/saves" -type f -newer "$marker" -print -quit)" ] || fail "no save written on stop"
+[ -n "$(find "$inst/saves" -type f -not -path '*/backup/*' -newer "$marker" -print -quit)" ] || fail "no world save written on stop"
 level=$(world)
 stop_id=$(g save list smoke | awk '$4 == "stop" {id = $1} END {print id}')
 [ -n "$stop_id" ] || fail "no stop snapshot"
-want=$(sha256sum "$level" | cut -d' ' -f1)
+want=$(world_hash)
 g config log smoke
 
 step "restore $stop_id over a corrupted save"
 echo corrupted > "$level"
 g save restore smoke "$stop_id"
-[ "$(sha256sum "$level" | cut -d' ' -f1)" = "$want" ] || fail "restored save differs from the snapshot"
+[ "$(world_hash)" = "$want" ] || fail "restored saves differ from the snapshot"
 
 step "start again on the restored world"
 g start smoke
 wait_for 180 "the server to listen again" listening 15637
-g stop smoke
 
-step "a second instance gets the next port"
+step "a second instance gets the next port and runs beside the first"
 g create enshrouded smoke2
-port_in_json 15638 "$home/instances/smoke2/config/enshrouded_server.json" || fail "smoke2's queryPort isn't 15638"
+json2="$home/instances/smoke2/config/enshrouded_server.json"
+port_in_json 15638 "$json2" || fail "smoke2's queryPort isn't 15638"
 g start smoke2
 wait_for 180 "smoke2 to listen on UDP 15638" listening 15638
-g stop smoke2
+sleep 20 # a port clash may take the server down only after it starts listening
+echo "port keys in the server-written configs:"
+grep -i port "$json" "$json2" || true
+listening 15637 || fail "smoke stopped listening when smoke2 started"
+g status | grep -q "smoke2 .* running" || fail "smoke2 is not running beside smoke"
+g status | grep -q "^smoke .* running" || fail "smoke is not running beside smoke2"
+g stop smoke smoke2
 
 step "update (expect: already up to date)"
 g update smoke

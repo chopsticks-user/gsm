@@ -39,7 +39,7 @@ Go is not installed globally; use the flake's dev shell (details in `docs/develo
 - Release binaries into `build/release/`: `nix develop path:./flake -c scripts/release-build.sh v1.2.3`
 - Test: `nix develop path:./flake -c go test -race ./...`
 - Verify (scripts syntax, gofmt, go vet for Linux/Windows/macOS, race tests including the end-to-end test; CI runs the same): `nix develop path:./flake -c scripts/verify.sh`
-- Smoke tests against the real servers (run before a release): `nix develop path:./flake -c scripts/smoke-palworld.sh` (5 GB download) and `scripts/smoke-enshrouded.sh` (2 x 7.6 GB, needs wine)
+- Smoke tests against the real servers (run before a release): `nix develop path:./flake -c scripts/smoke-palworld.sh` (5 GB download) and `nix develop path:./flake -c scripts/smoke-enshrouded.sh` (2 x 7.6 GB, needs wine)
 - Vulnerability scan (CI runs it for Linux, Windows and macOS; needs the network): `nix develop path:./flake -c govulncheck -test ./...`
 - A stdlib vulnerability or a Dependabot `go` bump that fails CI is fixed by `nix flake update --flake path:./flake` (Dependabot doesn't update `flake/flake.lock`)
 

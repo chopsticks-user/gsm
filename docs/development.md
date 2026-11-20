@@ -144,7 +144,7 @@ Patches come from a release branch, not `main`, because `main` already carries u
 What a version number means is in [Versioning](#versioning). To cut a release:
 
 1. For a minor release: every issue in its [milestone](https://github.com/chopsticks-user/gsm/milestones) is closed, its exit criteria in [roadmap.md](roadmap.md) hold, and CI is green on `main`. For a patch: the fixes are cherry-picked onto `release-X.Y` (see [Versioning](#versioning)).
-2. Run the smoke tests with a game client: `nix develop path:./flake -c scripts/smoke-palworld.sh --hold` and `scripts/smoke-enshrouded.sh --hold`, and connect to each server (UDP 8211, UDP 15637) while it holds.
+2. Run the smoke tests with a game client: `nix develop path:./flake -c scripts/smoke-palworld.sh --hold` and `nix develop path:./flake -c scripts/smoke-enshrouded.sh --hold`, and connect to each server (UDP 8211, UDP 15637) while it holds.
 3. In `CHANGELOG.md`, rename `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD`, start a new empty `## [Unreleased]` above it, update the links at the bottom, and merge that through a pull request. For a patch, the section goes on the release branch first (steps in [Versioning](#versioning)). A pre-release (`vX.Y.Z-rc.N`) can skip this: without a section of its own, its notes come from `[Unreleased]`.
 4. Tag the merge commit on `main` (or on `release-X.Y` for a patch) and push the tag:
    ```

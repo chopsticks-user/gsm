@@ -234,6 +234,11 @@ func TestEnshrouded(t *testing.T) {
 	if g.Supports("darwin") || !g.Launch["linux"].Wine || g.Launch["windows"].Wine {
 		t.Fatalf("launch: %+v", g.Launch)
 	}
+	l, w := g.Launch["linux"], g.Launch["windows"]
+	if l.Command != "enshrouded_server.exe" || l.ConfigFile != "enshrouded_server.json" || l.SavesDir != "savegame" ||
+		w.Command != l.Command || w.ConfigFile != l.ConfigFile || w.SavesDir != l.SavesDir || g.ConfigPortKey != "queryPort" {
+		t.Fatalf("paths: %+v, port key %q", g.Launch, g.ConfigPortKey)
+	}
 	if g.InstallPlatform("linux") != "windows" || g.InstallPlatform("windows") != "" {
 		t.Fatal("install platform")
 	}

@@ -244,10 +244,10 @@ Everything above works the same for Enshrouded (`gsm create enshrouded <name>`);
 
 - **Wine on Linux.** Enshrouded ships only a Windows server, so on Linux gsm installs the Windows build and runs it through `wine`, which must be on PATH (`gsm doctor` checks once you have an Enshrouded instance). Each instance gets its own Wine prefix in `instances/<name>/wine/`; it holds nothing of yours, and if Wine misbehaves you can delete it while the server is stopped: the next start recreates it. On Windows the server runs natively.
 - **Download size.** About 7.6 GB per instance.
-- **One config file.** The whole config is `config/enshrouded_server.json`. gsm owns only `queryPort` (UDP, default 15637; a second instance gets 15638): it sets it to the instance's port before every start, so change the port with `--port` at `create`, not in the file. Everything else in the file is yours and goes into config history like Palworld's settings.
+- **One config file.** The whole config is `config/enshrouded_server.json`. gsm owns only `queryPort` (UDP, default 15637; a second instance gets 15638): it sets it to the instance's port before every start, so change the port with `--port` at `create`, not in the file. Everything else in the file is yours and goes into config history like Palworld's settings, except that `saveDirectory` and `logDirectory` must stay as the server writes them (`./savegame`, `./logs`): gsm snapshots only what lands in `savegame`, so a world saved elsewhere would have no snapshots.
 - **Passwords in config history.** On its first start the server fills the file in, including random passwords for its user groups, and gsm commits it on the next start. Treat the config repo as secret ([Known limitations](design.md#known-limitations)).
 - **Stopping.** gsm stops it with SIGINT, which makes it save on the way out (SIGTERM would kill Wine without saving).
-- **Windows is untested.** Enshrouded has run under Wine on Linux; its native Windows launch has not run on real Windows yet, and needs file symlinks there (Developer Mode or admin).
+- **Windows is untested.** Enshrouded has run under Wine on Linux; its native Windows launch has not run on real Windows yet, and needs file symlinks there (Developer Mode or admin). gsm stops it there with Ctrl+Break, and whether the server saves on Ctrl+Break is unknown: until that is checked, stop it from the game first or expect to lose progress since the last autosave.
 
 ## Command reference
 
