@@ -24,10 +24,12 @@ Tools gsm calls at runtime come from the host, not the flake: `git`, `steamcmd`,
 ## Build
 
 ```
-nix develop path:./flake -c go build ./cmd/gsm
-nix develop path:./flake -c env GOOS=windows go build ./cmd/gsm
-nix develop path:./flake -c env GOOS=darwin GOARCH=arm64 go build ./cmd/gsm
+nix develop path:./flake -c go build -o build/ ./cmd/gsm
+nix develop path:./flake -c env GOOS=windows go build -o build/ ./cmd/gsm
+nix develop path:./flake -c env GOOS=darwin GOARCH=arm64 go build -o build/gsm-darwin-arm64 ./cmd/gsm
 ```
+
+All build output goes to the gitignored `build/`. Release binaries for every OS and CPU go to `build/release/` (see [Releasing](#releasing)). `gsm version` prints the version, the commit and the Go version; a build without a release version says `dev`, and a build from uncommitted changes marks the commit `-dirty`.
 
 ## Verify
 
@@ -73,6 +75,27 @@ Repeats the lifecycle against the real Palworld dedicated server: it downloads i
 3. Check the definition with `gsm game show <game>`, then run the whole lifecycle against a real install: `create`, `start`, `status`, `stop`, `save restore`, `update`.
 4. Document the game in [guide.md](guide.md) and any new limitation in [design.md](design.md#known-limitations).
 
+## Releasing
+
+Versions follow [Semantic Versioning](https://semver.org) with a `v` prefix (`v0.1.0`; `v0.2.0-rc.1` for a pre-release). Before 1.0.0, a minor version may change the CLI or data formats.
+
+To cut a release:
+
+1. Make sure every issue in the version's [milestone](https://github.com/chopsticks-user/gsm/milestones) is closed and CI is green on `main`.
+2. Run the smoke test with a game client: `nix develop path:./flake -c scripts/smoke-palworld.sh --hold`, and connect to the server on UDP 8211 while it holds.
+3. In `CHANGELOG.md`, rename `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD`, start a new empty `## [Unreleased]` above it, update the links at the bottom, and merge that through a pull request. A pre-release (`vX.Y.Z-rc.N`) can skip this: without a section of its own, its notes come from `[Unreleased]`.
+4. Tag the merge commit on `main` and push the tag:
+   ```
+   git tag -a vX.Y.Z -m "gsm vX.Y.Z"
+   git push origin vX.Y.Z
+   ```
+5. `.github/workflows/release.yml` then verifies the tagged commit, builds the binaries (`scripts/release-build.sh`), takes the notes from the version's CHANGELOG section (`scripts/release-notes.sh`, which fails if the section is missing) and publishes the GitHub release with every binary and `SHA256SUMS`. A tag with a `-` suffix becomes a pre-release. The release is created only after everything is built, and never overwrites an existing one.
+6. Check the release page, download one binary, verify it against `SHA256SUMS`, and run `gsm version`.
+
+If the workflow fails, fix the problem on `main`, delete any release it left behind (`gh release delete vX.Y.Z`, in case an asset upload failed after the release was created), delete the tag (`git push --delete origin vX.Y.Z`, `git tag -d vX.Y.Z`), and tag again. The workflow also refuses a tag that isn't on `main`.
+
+To try a release build locally: `nix develop path:./flake -c scripts/release-build.sh v0.0.0-test`.
+
 ## Workflow
 
 Every change that will be committed goes through a GitHub issue and a pull request:
@@ -105,6 +128,6 @@ Keep docs in step with code, in the same PR:
 | [guide.md](guide.md) | using gsm: the walkthrough and command reference |
 | [architecture.md](architecture.md) | how gsm is built: packages, data, formats, algorithms, per-OS behavior |
 | [design.md](design.md) | why: goals, decisions and rejected alternatives, roadmap, limitations, open questions |
-| development.md | this file: dev environment, verify, tests, workflow |
+| development.md | this file: dev environment, verify, tests, releasing, workflow |
 
 Each fact lives in one doc; the others link to it.
