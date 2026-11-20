@@ -83,11 +83,12 @@ func cmdCreate(e env, args []string) error {
 	}
 
 	settings := map[string]string{}
+	keys := g.SetKeys()
 	for _, s := range sets {
 		k, v, ok := strings.Cut(s, "=")
-		if !ok || k == "port" || !slices.Contains(g.Placeholders(), k) {
-			return fmt.Errorf("bad --set %q (settings for %s: %s; use --port for the port)",
-				s, g.Name, strings.Join(g.Placeholders(), ", "))
+		if !ok || !slices.Contains(keys, k) {
+			return fmt.Errorf("bad --set %q (%s --set keys: %s; use --port for the port)",
+				s, g.Name, strings.Join(keys, ", "))
 		}
 		settings[k] = v
 	}
@@ -243,15 +244,9 @@ func cmdDoctor(e env, args []string) error {
 	return nil
 }
 
-// settingsLine describes what an instance of g can set: the args
-// placeholders through --set, except port, which has its own flag.
+// settingsLine describes what an instance of g can set at create.
 func settingsLine(g game.Game) string {
-	var keys []string
-	for _, k := range g.Placeholders() {
-		if k != "port" {
-			keys = append(keys, k)
-		}
-	}
+	keys := g.SetKeys()
 	if len(keys) == 0 {
 		return "none; port with --port"
 	}

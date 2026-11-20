@@ -73,7 +73,7 @@ func (g Game) RenderArgs(vals map[string]string) ([]string, error) {
 	return out, nil
 }
 
-// Placeholders lists the names usable with --set.
+// Placeholders lists the args template's placeholder names, port included.
 func (g Game) Placeholders() []string {
 	var ks []string
 	for _, a := range g.Args {
@@ -81,6 +81,18 @@ func (g Game) Placeholders() []string {
 			if !slices.Contains(ks, m[1]) {
 				ks = append(ks, m[1])
 			}
+		}
+	}
+	return ks
+}
+
+// SetKeys lists the names usable with create --set: every placeholder except
+// port, which has its own flag.
+func (g Game) SetKeys() []string {
+	var ks []string
+	for _, k := range g.Placeholders() {
+		if k != "port" {
+			ks = append(ks, k)
 		}
 	}
 	return ks
