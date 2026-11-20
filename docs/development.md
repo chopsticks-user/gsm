@@ -4,7 +4,7 @@ How to build, test and change gsm. For how the code is organized, see [architect
 
 ## Dev environment
 
-The repo ships a Nix flake with the toolchain: Go, gopls, and gcc (the race detector needs cgo).
+The repo ships a Nix flake with the toolchain: Go, gopls, gcc (the race detector needs cgo) and govulncheck.
 
 ```
 nix develop path:./flake            # a shell with the toolchain
@@ -65,6 +65,10 @@ Repeats the lifecycle against the real Palworld dedicated server: it downloads i
 ### CI
 
 `.github/workflows/ci.yml` runs verify through the flake on `ubuntu-latest` for every pull request and every push to `main`, the same command as locally. Linux only for now; Windows and macOS runners are [#15](https://github.com/chopsticks-user/gsm/issues/15).
+
+CI then runs `govulncheck ./...`, which fails on a known vulnerability in code gsm actually calls (one in a dependency function gsm never calls is reported but doesn't fail). It needs the network for the vulnerability database, so it's a CI step rather than part of verify; run it locally with `nix develop path:./flake -c govulncheck ./...`.
+
+Dependabot (`.github/dependabot.yml`) opens weekly pull requests for Go module and GitHub Actions updates, which CI checks like any other. It doesn't update the Nix flake inputs (`flake/flake.lock`); update those with `nix flake update --flake path:./flake`.
 
 ## Adding a game
 

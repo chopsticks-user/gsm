@@ -1,0 +1,12 @@
+# Weekly update PRs for Go modules and GitHub Actions. The Nix flake inputs
+# (flake.lock) aren't covered; Dependabot doesn't support Nix.
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

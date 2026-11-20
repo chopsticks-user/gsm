@@ -25,3 +25,7 @@ jobs:
       # Linux/Windows/macOS, and the race tests, end-to-end test included.
       - name: Verify
         run: nix develop path:./flake -c scripts/verify.sh
+      # Fails on known vulnerabilities in code gsm actually calls. Separate from
+      # verify because it needs the network for the vulnerability database.
+      - name: Vulnerabilities
+        run: nix develop path:./flake -c govulncheck ./...
