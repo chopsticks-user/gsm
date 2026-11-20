@@ -259,7 +259,7 @@ The fourth row relies on a POSIX guarantee: the OS never reuses a PID while it i
 
 1. **Stop addons** first, so the tunnel goes down before the game.
 2. **Not running?** Print `not running`, remove a stale state file, done.
-3. **SIGTERM to the whole group** (`kill(-pgid, SIGTERM)`; Ctrl+Break on Windows). Signalling only the launched PID would miss the real server. If the request can't be sent and the server is still there, gsm goes straight to step 5.
+3. **SIGTERM to the whole group** (`kill(-pgid, SIGTERM)`; Ctrl+Break on Windows). Signalling only the launched PID would miss the real server. If sending the request fails, gsm warns and carries on with step 4 anyway: the request may have been delivered, and the server may be saving.
 4. **Wait,** checking every 200 ms with the running check, up to the game's stop timeout.
 5. **SIGKILL to the group** if it's still there, wait up to 10 more seconds, report `did not exit in time, killed`.
 6. **Clear `state.json`.**
@@ -379,6 +379,6 @@ Other writes are not atomic, on purpose or not yet: `logs/server.log` is appende
 
 **NixOS** (detected by `/etc/NIXOS`): Steam binaries need `steam-run`, which gives the server a fresh `/tmp` (so `$GSM_HOME` can't be under `/tmp`), and the server needs `steamclient.so` in `~/.steam/sdk64`. `doctor` checks for both.
 
-**Windows.** There is no SIGTERM; the closest is a Ctrl+Break console event, which `GenerateConsoleCtrlEvent` can send to a process group. The sender must share the server's console, so the server gets a hidden console of its own (`CREATE_NO_WINDOW`). Attaching to it would disturb gsm's own terminal, so gsm starts a short-lived copy of itself (`gsm __gsm-ctrl-break <pid>`, handled by `proc.HandleHelper`) that does `FreeConsole`, `AttachConsole(pid)` and `GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, pid)`. The force-stop fallback, `taskkill /T`, walks the tree by parent PID. It runs when the graceful stop times out, and right away if the helper fails (for example when it can't attach to the console). Directory junctions appear in Go 1.23+ as `ModeIrregular`, not symlinks, which `LinkTo` accounts for. All of this compiles but hasn't run on real Windows.
+**Windows.** There is no SIGTERM; the closest is a Ctrl+Break console event, which `GenerateConsoleCtrlEvent` can send to a process group. The sender must share the server's console, so the server gets a hidden console of its own (`CREATE_NO_WINDOW`). Attaching to it would disturb gsm's own terminal, so gsm starts a short-lived copy of itself (`gsm __gsm-ctrl-break <pid>`, handled by `proc.HandleHelper`) that does `FreeConsole`, `AttachConsole(pid)` and `GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, pid)`. The force-stop fallback, `taskkill /T`, walks the tree by parent PID. It runs when the graceful stop times out, including when the helper failed (for example when it can't attach to the console), which gsm reports as a warning. Directory junctions appear in Go 1.23+ as `ModeIrregular`, not symlinks, which `LinkTo` accounts for. All of this compiles but hasn't run on real Windows.
 
 **macOS.** Few dedicated servers ship macOS binaries, so `create` refuses games without a macOS launch entry. The rest works as on Linux, except the start time lookup.

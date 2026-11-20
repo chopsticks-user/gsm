@@ -69,7 +69,7 @@ func Launch(c *exec.Cmd, stateFile, instance string) (State, error) {
 	st := State{PID: c.Process.Pid, Start: t, Instance: instance}
 	b, _ := json.Marshal(st)
 	if err := fsutil.WriteAtomic(stateFile, b, 0o644); err != nil {
-		terminate(st.PID)
+		Stop(st, 5*time.Second) // don't leave a server gsm can't find
 		return State{}, err
 	}
 	return st, nil
@@ -79,25 +79,24 @@ func Launch(c *exec.Cmd, stateFile, instance string) (State, error) {
 var terminateGroup = terminate
 
 // Stop asks the server's process group to exit, waits up to timeout, then
-// kills it. If the stop request can't be sent, it kills right away. It
-// reports whether a kill was needed.
-func Stop(st State, timeout time.Duration) (killed bool, err error) {
+// kills it. It reports whether a kill was needed. A stop request that
+// fails is returned as warning, not err: it may have been delivered anyway,
+// so Stop still waits the full timeout (the server may be saving) and then
+// force-stops.
+func Stop(st State, timeout time.Duration) (killed bool, warning, err error) {
 	if terr := terminateGroup(st.PID); terr != nil {
-		if !ServerAlive(st) {
-			return false, nil
-		}
-		if err := kill(st.PID); err != nil {
-			return true, fmt.Errorf("%v; force stop also failed: %w", terr, err)
-		}
-	} else if waitGone(st, timeout) {
-		return false, nil
-	} else if err := kill(st.PID); err != nil {
-		return true, err
+		warning = fmt.Errorf("stop request failed: %w", terr)
+	}
+	if waitGone(st, timeout) {
+		return false, warning, nil
+	}
+	if err := kill(st.PID); err != nil && ServerAlive(st) {
+		return true, warning, err
 	}
 	if !waitGone(st, 10*time.Second) {
-		return true, errors.New("server still running after kill")
+		return true, warning, errors.New("server still running after kill")
 	}
-	return true, nil
+	return true, warning, nil
 }
 
 func waitGone(st State, timeout time.Duration) bool {
