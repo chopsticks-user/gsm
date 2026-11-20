@@ -1,6 +1,8 @@
 package store
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -194,4 +196,73 @@ func TestLockIsPublishedCompleteAndCleansUp(t *testing.T) {
 			t.Errorf("%s left in the store after unlock", e.Name())
 		}
 	}
+}
+
+// A server can rewrite a save after the walk saw it and before it is hashed.
+// The record must still describe one version of the file, and restore must
+// accept it, on both the new-object and the existing-object path.
+func TestSnapshotOfFileRewrittenBeforeHashIsConsistent(t *testing.T) {
+	for _, existing := range []bool{false, true} {
+		t.Run(map[bool]string{false: "new object", true: "existing object"}[existing], func(t *testing.T) {
+			s, saves := setup(t)
+			save := filepath.Join(saves, "Level.sav")
+			newer := "a longer, newer save"
+			if existing { // store the newer content once, so the second snapshot dedups it
+				write(t, save, newer)
+				if _, err := s.Snapshot(saves, Record{Instance: "main"}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			write(t, save, "old")
+			s.beforeHash = func(p string) {
+				if p == save {
+					write(t, save, newer)
+				}
+			}
+			rec, err := s.Snapshot(saves, Record{Instance: "main"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			s.beforeHash = nil
+			sum := sha256.Sum256([]byte(newer))
+			f := rec.Files[0]
+			if f.Hash != hex.EncodeToString(sum[:]) || f.Size != int64(len(newer)) {
+				t.Fatalf("record has size %d and hash %s..., want size %d with the hash of the same bytes", f.Size, f.Hash[:8], len(newer))
+			}
+			// The failure the user saw: restore rejecting the record.
+			write(t, save, "something else")
+			if _, err := s.Restore(rec, saves, Record{Instance: "main"}); err != nil {
+				t.Fatalf("restore of the live snapshot: %v", err)
+			}
+			if got := read(t, save); got != newer {
+				t.Fatalf("restored %q, want %q", got, newer)
+			}
+		})
+	}
+}
+
+// A file removed after the walk listed it (a temp file renamed away) fails
+// the snapshot with gsm's "try again", not a raw "no such file".
+func TestSnapshotOfFileVanishedMidWalkSaysTryAgain(t *testing.T) {
+	s, saves := setup(t)
+	tmp := filepath.Join(saves, "Level.sav.tmp")
+	write(t, tmp, "half written")
+	s.beforeHash = func(p string) {
+		if p == tmp {
+			os.Remove(tmp)
+		}
+	}
+	_, err := s.Snapshot(saves, Record{Instance: "main"})
+	if err == nil || !strings.Contains(err.Error(), "try again") {
+		t.Fatalf("err = %v, want a try-again error", err)
+	}
+}
+
+func read(t *testing.T, p string) string {
+	t.Helper()
+	b, err := os.ReadFile(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
 }
