@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 	"testing"
@@ -263,6 +264,9 @@ func waitFor(t *testing.T, what string, cond func() bool) {
 }
 
 func TestLifecycleEndToEnd(t *testing.T) {
+	if runtime.GOOS == "darwin" {
+		t.Skip("Palworld has no macOS server")
+	}
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not found")
 	}
