@@ -2,7 +2,7 @@
 
 This guide follows one user from an empty machine to two running Palworld servers, with snapshots, a restore and an update, showing each command's output and what it does. For how each step works underneath, follow the links to [architecture.md](architecture.md).
 
-gsm currently supports Palworld on Linux and Windows. It implements `doctor`, `game`, `create`, `list`, `start`, `stop`, `restart`, `run`, `status`, `logs`, `update`, `config diff|log|commit`, `save snapshot|list|restore`, `version` and the `playit` addon. What's planned is in [roadmap.md](roadmap.md).
+gsm currently supports Palworld (Linux, Windows) and Enshrouded (Linux through Wine, Windows; see [Enshrouded](#enshrouded)). It implements `doctor`, `game`, `create`, `list`, `start`, `stop`, `restart`, `run`, `status`, `logs`, `update`, `config diff|log|commit`, `save snapshot|list|restore`, `version` and the `playit` addon. What's planned is in [roadmap.md](roadmap.md).
 
 ## Step 0: Get gsm
 
@@ -237,6 +237,17 @@ main: added addon playit
 ```
 
 [playit.gg](https://playit.gg) makes a server reachable without port forwarding. The addon runs the playit agent as a podman container, started after the server and stopped before it. It needs podman and an env file at `~/.config/playit/env` containing `SECRET_KEY=...` from your playit account. gsm never copies that file and warns if it's missing. `gsm addon remove main playit` turns it off. Details: [Addons](architecture.md#addons).
+
+## Enshrouded
+
+Everything above works the same for Enshrouded (`gsm create enshrouded <name>`); these are the differences.
+
+- **Wine on Linux.** Enshrouded ships only a Windows server, so on Linux gsm installs the Windows build and runs it through `wine`, which must be on PATH (`gsm doctor` checks once you have an Enshrouded instance). Each instance gets its own Wine prefix in `instances/<name>/wine/`; it holds nothing of yours, and if Wine misbehaves you can delete it while the server is stopped: the next start recreates it. On Windows the server runs natively.
+- **Download size.** About 7.6 GB per instance.
+- **One config file.** The whole config is `config/enshrouded_server.json`. gsm owns only `queryPort` (UDP, default 15637; a second instance gets 15638): it sets it to the instance's port before every start, so change the port with `--port` at `create`, not in the file. Everything else in the file is yours and goes into config history like Palworld's settings.
+- **Passwords in config history.** On its first start the server fills the file in, including random passwords for its user groups, and gsm commits it on the next start. Treat the config repo as secret ([Known limitations](design.md#known-limitations)).
+- **Stopping.** gsm stops it with SIGINT, which makes it save on the way out (SIGTERM would kill Wine without saving).
+- **Windows is untested.** Enshrouded has run under Wine on Linux; its native Windows launch has not run on real Windows yet, and needs file symlinks there (Developer Mode or admin).
 
 ## Command reference
 

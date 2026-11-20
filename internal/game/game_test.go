@@ -225,3 +225,22 @@ func TestValidateAcceptsConfigFileGame(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestEnshrouded(t *testing.T) {
+	g, err := Get("enshrouded")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if g.Supports("darwin") || !g.Launch["linux"].Wine || g.Launch["windows"].Wine {
+		t.Fatalf("launch: %+v", g.Launch)
+	}
+	if g.InstallPlatform("linux") != "windows" || g.InstallPlatform("windows") != "" {
+		t.Fatal("install platform")
+	}
+	if g.Signal() != syscall.SIGINT {
+		t.Fatalf("stop signal %v", g.Signal())
+	}
+	if args, err := g.RenderArgs(map[string]string{"port": "15637"}); err != nil || len(args) != 0 {
+		t.Fatalf("args %v, %v", args, err)
+	}
+}

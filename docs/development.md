@@ -33,6 +33,7 @@ The `justfile` has recipes for the commands below; inside the dev shell run `jus
 | `just fmt` | `go fmt ./...` |
 | `just vuln` | `govulncheck -test ./...` for Linux, Windows and macOS, as CI does |
 | `just smoke [--hold]` | `scripts/smoke-palworld.sh` |
+| `just smoke-enshrouded [--hold]` | `scripts/smoke-enshrouded.sh` |
 | `just release-build <version>` | `scripts/release-build.sh` |
 | `just release-notes <version>` | `scripts/release-notes.sh` |
 | `just clean` | removes `build/` |
@@ -78,9 +79,12 @@ On NixOS, keep test data out of `/tmp` when a test starts a server through `stea
 
 ```
 nix develop path:./flake -c scripts/smoke-palworld.sh [--hold]
+nix develop path:./flake -c scripts/smoke-enshrouded.sh [--hold]
 ```
 
 Repeats the lifecycle against the real Palworld dedicated server: it downloads it (about 5 GB) into a throwaway home under `~/.cache`, edits `ServerName` in the seeded settings, waits for the server to listen and save, checks the edit survived, snapshots, stops, restores over a corrupted `Level.sav` and checks the hash, starts again, and updates. The throwaway home is deleted at the end, also on failure. `--hold` pauses while the server runs, so you can connect with a game client. It needs steamcmd (plus `steam-run` and `steamclient.so` on NixOS) and a free UDP port 8211, so it doesn't run in CI; run it before a release.
+
+`smoke-enshrouded.sh` does the same for Enshrouded under Wine: it creates an instance (about 7.6 GB), checks the config file is linked and its `queryPort` is 15637, waits for UDP 15637 and the first save, checks the server kept the link and the port, stops with SIGINT and checks a save was written on the way out, restores over a corrupted save and starts again, creates a second instance and checks it gets and listens on 15638, and updates. It needs `wine` and `ss` too, and free UDP ports 15637 and 15638.
 
 ### CI
 
@@ -140,7 +144,7 @@ Patches come from a release branch, not `main`, because `main` already carries u
 What a version number means is in [Versioning](#versioning). To cut a release:
 
 1. For a minor release: every issue in its [milestone](https://github.com/chopsticks-user/gsm/milestones) is closed, its exit criteria in [roadmap.md](roadmap.md) hold, and CI is green on `main`. For a patch: the fixes are cherry-picked onto `release-X.Y` (see [Versioning](#versioning)).
-2. Run the smoke test with a game client: `nix develop path:./flake -c scripts/smoke-palworld.sh --hold`, and connect to the server on UDP 8211 while it holds.
+2. Run the smoke tests with a game client: `nix develop path:./flake -c scripts/smoke-palworld.sh --hold` and `scripts/smoke-enshrouded.sh --hold`, and connect to each server (UDP 8211, UDP 15637) while it holds.
 3. In `CHANGELOG.md`, rename `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD`, start a new empty `## [Unreleased]` above it, update the links at the bottom, and merge that through a pull request. For a patch, the section goes on the release branch first (steps in [Versioning](#versioning)). A pre-release (`vX.Y.Z-rc.N`) can skip this: without a section of its own, its notes come from `[Unreleased]`.
 4. Tag the merge commit on `main` (or on `release-X.Y` for a patch) and push the tag:
    ```

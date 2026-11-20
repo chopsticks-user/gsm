@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+# Smoke test against the real Enshrouded dedicated server, run through Wine
+# on Linux: the full gsm lifecycle with a real steamcmd download (about
+# 7.6 GB per instance, two instances) in a throwaway home, deleted at the
+# end, also on failure. Run it before a release:
+#
+#   nix develop path:./flake -c scripts/smoke-enshrouded.sh [--hold]
+#
+# --hold pauses while the server runs, so you can connect with a game client.
+# Needs steamcmd (and steam-run plus steamclient.so on NixOS, for steamcmd),
+# wine, git, ss, and free UDP ports 15637 and 15638.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+hold=false
+[ "${1:-}" = "--hold" ] && hold=true
+
+cache="${XDG_CACHE_HOME:-$HOME/.cache}"
+mkdir -p "$cache"
+work=$(mktemp -d "$cache/gsm-smoke-XXXXXX")
+home="$work/home"
+gsm="$work/gsm"
+inst="$home/instances/smoke"
+json="$inst/config/enshrouded_server.json"
+
+cleanup() {
+  status=$?
+  [ -x "$gsm" ] && "$gsm" --home "$home" stop --all >/dev/null 2>&1 || true
+  rm -rf "$work"
+  if [ $status -eq 0 ]; then echo "PASS: smoke test"; else echo "FAIL: smoke test (exit $status)" >&2; fi
+}
+trap cleanup EXIT
+
+step() { echo; echo "== $*"; }
+fail() { echo "FAIL: $*" >&2; exit 1; }
+g() { "$gsm" --home "$home" "$@"; }
+
+# wait_for <seconds> <description> <command...>
+wait_for() {
+  local secs=$1 what=$2; shift 2
+  for _ in $(seq "$secs"); do
+    if "$@" >/dev/null 2>&1; then return 0; fi
+    sleep 1
+  done
+  fail "timed out after ${secs}s waiting for $what"
+}
+
+listening() { ss -uln | grep -q ":$1 "; }
+# The world save, not the server's rotating copies in backup/.
+world() { find "$inst/saves" -type f -not -path '*/backup/*' -print -quit; }
+has_save() { [ -n "$(world)" ]; }
+port_in_json() { grep -Eq "\"queryPort\"[[:space:]]*:[[:space:]]*$1([^0-9]|$)" "$2"; }
+
+command -v ss >/dev/null || fail "ss not found (iproute2)"
+
+step "build gsm"
+go build -o "$gsm" ./cmd/gsm
+
+step "doctor"
+g doctor
+
+step "create (downloads the Windows server)"
+g create enshrouded smoke
+[ -L "$inst/server/savegame" ] || fail "saves are not linked into the install"
+[ -L "$inst/server/enshrouded_server.json" ] || fail "the config file is not linked into the install"
+port_in_json 15637 "$json" || fail "queryPort isn't 15637 in the created config"
+
+step "start"
+g start smoke
+wait_for 180 "the server to listen on UDP 15637" listening 15637
+wait_for 300 "the first world save" has_save
+echo "world save: $(world)"
+[ -L "$inst/server/enshrouded_server.json" ] || fail "the server replaced the config link with a file"
+port_in_json 15637 "$json" || fail "the server changed queryPort"
+
+if $hold; then
+  echo
+  read -r -p "Server is up on UDP 15637. Connect with a game client, then press Enter to continue... " _ || true
+fi
+
+step "stop (SIGINT; the server saves on the way out)"
+marker="$work/before-stop"
+touch "$marker"
+sleep 1
+g stop smoke
+g status | grep 'smoke .* stopped' >/dev/null || fail "status doesn't show smoke stopped"
+[ -n "$(find "$inst/saves" -type f -newer "$marker" -print -quit)" ] || fail "no save written on stop"
+level=$(world)
+stop_id=$(g save list smoke | awk '$4 == "stop" {id = $1} END {print id}')
+[ -n "$stop_id" ] || fail "no stop snapshot"
+want=$(sha256sum "$level" | cut -d' ' -f1)
+g config log smoke
+
+step "restore $stop_id over a corrupted save"
+echo corrupted > "$level"
+g save restore smoke "$stop_id"
+[ "$(sha256sum "$level" | cut -d' ' -f1)" = "$want" ] || fail "restored save differs from the snapshot"
+
+step "start again on the restored world"
+g start smoke
+wait_for 180 "the server to listen again" listening 15637
+g stop smoke
+
+step "a second instance gets the next port"
+g create enshrouded smoke2
+port_in_json 15638 "$home/instances/smoke2/config/enshrouded_server.json" || fail "smoke2's queryPort isn't 15638"
+g start smoke2
+wait_for 180 "smoke2 to listen on UDP 15638" listening 15638
+g stop smoke2
+
+step "update (expect: already up to date)"
+g update smoke
+[ -L "$inst/server/savegame" ] || fail "saves link lost after update"
+[ -L "$inst/server/enshrouded_server.json" ] || fail "config link lost after update"
+
+step "snapshots"
+g save list smoke

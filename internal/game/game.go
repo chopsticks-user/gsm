@@ -128,7 +128,25 @@ var Palworld = Game{
 	DefaultConfigName: "PalWorldSettings.ini",
 }
 
-var all = []Game{Palworld}
+// Enshrouded ships only a Windows server; on Linux it runs through Wine.
+// Its whole config is one JSON file the server creates on first start, with
+// the port in queryPort. Under Wine, SIGTERM kills it without saving;
+// SIGINT shuts it down cleanly and saves.
+var Enshrouded = Game{
+	Name:       "enshrouded",
+	Title:      "Enshrouded",
+	SteamAppID: "2278520",
+	Launch: map[string]Launch{
+		"linux":   {Command: "enshrouded_server.exe", ConfigFile: "enshrouded_server.json", SavesDir: "savegame", Wine: true},
+		"windows": {Command: "enshrouded_server.exe", ConfigFile: "enshrouded_server.json", SavesDir: "savegame"},
+	},
+	DefaultPort:   15637,
+	ConfigPortKey: "queryPort",
+	StopTimeout:   30 * time.Second,
+	StopSignal:    syscall.SIGINT,
+}
+
+var all = []Game{Palworld, Enshrouded}
 
 func All() []Game { return all }
 
