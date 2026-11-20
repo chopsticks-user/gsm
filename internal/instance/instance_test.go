@@ -74,19 +74,28 @@ func TestArgValues(t *testing.T) {
 
 func TestFormatVersion(t *testing.T) {
 	home := t.TempDir()
-	toml := filepath.Join(Root(home), "main", "instance.toml")
-	os.MkdirAll(filepath.Dir(toml), 0o755)
+	write := func(name, content string) {
+		t.Helper()
+		p := filepath.Join(Root(home), name, "instance.toml")
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
 	// v0.1.0 wrote no format: it reads as version 1.
-	os.WriteFile(toml, []byte("game = \"palworld\"\nport = 8211\n"), 0o644)
-	if _, err := Load(home, "main"); err != nil {
+	write("old", "game = \"palworld\"\nport = 8211\n")
+	if _, err := Load(home, "old"); err != nil {
 		t.Fatal(err)
 	}
-	// A newer gsm's file is refused by Load and by List.
-	os.WriteFile(toml, []byte("format = 2\ngame = \"palworld\"\n"), 0o644)
-	if _, err := Load(home, "main"); !errors.Is(err, fsutil.ErrTooNew) {
+	// A newer gsm's file is refused by Load; List returns the rest and names it.
+	write("new", "format = 2\ngame = \"palworld\"\n")
+	if _, err := Load(home, "new"); !errors.Is(err, fsutil.ErrTooNew) {
 		t.Fatalf("Load = %v, want ErrTooNew", err)
 	}
-	if _, err := List(home); !errors.Is(err, fsutil.ErrTooNew) {
-		t.Fatalf("List = %v, want ErrTooNew", err)
+	all, err := List(home)
+	if !errors.Is(err, fsutil.ErrTooNew) || len(all) != 1 || all[0].Name != "old" {
+		t.Fatalf("List = %v, %v", all, err)
 	}
 }

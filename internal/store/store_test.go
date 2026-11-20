@@ -306,11 +306,4 @@ func TestFormatVersions(t *testing.T) {
 	if _, err := s.Lock(time.Second); !errors.Is(err, fsutil.ErrTooNew) {
 		t.Fatalf("Lock in a newer store = %v", err)
 	}
-
-	// A live lock from a newer gsm is never taken over as stale.
-	write(t, filepath.Join(s.Dir, "format"), "1\n")
-	write(t, filepath.Join(s.Dir, "lock"), `{"format":2,"pid":1,"start_time":"x"}`)
-	if _, err := s.Lock(time.Second); !errors.Is(err, fsutil.ErrTooNew) {
-		t.Fatalf("Lock held by a newer gsm = %v", err)
-	}
 }

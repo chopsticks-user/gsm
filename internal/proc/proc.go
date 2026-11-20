@@ -22,7 +22,7 @@ import (
 const Format = 1
 
 type State struct {
-	Format   int    `json:"format"`
+	Format   int    `json:"format,omitempty"` // omitted in the store lock, versioned by store/format
 	PID      int    `json:"pid"`
 	Start    string `json:"start_time"`
 	Instance string `json:"instance"`

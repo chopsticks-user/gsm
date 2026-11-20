@@ -115,7 +115,8 @@ func (s Store) Lock(wait time.Duration) (unlock func(), err error) {
 	if err := os.MkdirAll(s.Dir, 0o755); err != nil {
 		return nil, err
 	}
-	if err := s.checkFormat(true); err != nil {
+	// The lock's own format is part of the store layout, so check that first.
+	if err := s.checkFormat(false); err != nil {
 		return nil, err
 	}
 	path := filepath.Join(s.Dir, "lock")
@@ -123,7 +124,7 @@ func (s Store) Lock(wait time.Duration) (unlock func(), err error) {
 	if err != nil {
 		return nil, err
 	}
-	me, _ := json.Marshal(proc.State{Format: proc.Format, PID: os.Getpid(), Start: t})
+	me, _ := json.Marshal(proc.State{PID: os.Getpid(), Start: t})
 	tmp, err := os.CreateTemp(s.Dir, "lock.tmp-*")
 	if err != nil {
 		return nil, err
@@ -140,7 +141,13 @@ func (s Store) Lock(wait time.Duration) (unlock func(), err error) {
 	for {
 		err := os.Link(tmp.Name(), path)
 		if err == nil {
-			return func() { os.Remove(path) }, nil
+			unlock := func() { os.Remove(path) }
+			// Recorded under the lock, so it can't race a newer gsm's migration.
+			if err := s.checkFormat(true); err != nil {
+				unlock()
+				return nil, err
+			}
+			return unlock, nil
 		}
 		if !errors.Is(err, fs.ErrExist) {
 			return nil, fmt.Errorf("create snapshot store lock: %w", err)
@@ -153,14 +160,7 @@ func (s Store) Lock(wait time.Duration) (unlock func(), err error) {
 		if rerr != nil {
 			return nil, fmt.Errorf("read snapshot store lock: %w", rerr)
 		}
-		perr := json.Unmarshal(b, &owner)
-		if perr == nil {
-			// a newer gsm's lock can't be judged stale; never take it over
-			if err := fsutil.CheckFormat(path, owner.Format, proc.Format); err != nil {
-				return nil, err
-			}
-		}
-		if perr != nil || !proc.Alive(owner) {
+		if json.Unmarshal(b, &owner) != nil || !proc.Alive(owner) {
 			// stale: its owner crashed, or a crash or older gsm left it unreadable
 			if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
 				return nil, fmt.Errorf("remove stale snapshot store lock: %w", err)
@@ -330,7 +330,7 @@ func (s Store) List(instance string) ([]Record, error) {
 		if err := json.Unmarshal(b, &r); err != nil {
 			return nil, fmt.Errorf("%s: %w", e.Name(), err)
 		}
-		if err := fsutil.CheckFormat(e.Name(), r.Format, RecordFormat); err != nil {
+		if err := fsutil.CheckFormat(filepath.Join(s.recordDir(instance), e.Name()), r.Format, RecordFormat); err != nil {
 			return nil, err
 		}
 		out = append(out, r)

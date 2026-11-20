@@ -84,6 +84,9 @@ func Load(home, name string) (Instance, error) {
 	return i, nil
 }
 
+// List returns every instance it can read. Instances written by a newer gsm
+// are left out and named in the error, so callers can act on the rest
+// without the others looking gone.
 func List(home string) ([]Instance, error) {
 	entries, err := os.ReadDir(Root(home))
 	if errors.Is(err, fs.ErrNotExist) {
@@ -93,13 +96,15 @@ func List(home string) ([]Instance, error) {
 		return nil, err
 	}
 	var out []Instance
+	var tooNew []error
 	for _, e := range entries {
 		if !e.IsDir() || ValidName(e.Name()) != nil {
 			continue
 		}
 		i, err := Load(home, e.Name())
 		if errors.Is(err, fsutil.ErrTooNew) {
-			return nil, err // skipping it would look like the instance is gone
+			tooNew = append(tooNew, err)
+			continue
 		}
 		if err != nil {
 			continue // a half-created instance has no instance.toml yet
@@ -107,7 +112,7 @@ func List(home string) ([]Instance, error) {
 		out = append(out, i)
 	}
 	sort.Slice(out, func(a, b int) bool { return out[a].Name < out[b].Name })
-	return out, nil
+	return out, errors.Join(tooNew...)
 }
 
 func (i Instance) Save() error {

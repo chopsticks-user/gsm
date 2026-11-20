@@ -153,12 +153,15 @@ func TestStopRequestFailsServerAlreadyGone(t *testing.T) {
 // error, not "stopped", so gsm never starts a second server beside it.
 func TestStateFormat(t *testing.T) {
 	sf := filepath.Join(t.TempDir(), "state.json")
-	os.WriteFile(sf, []byte(`{"pid":1,"start_time":"x","instance":"main"}`), 0o644)
-	if _, _, err := Running(sf, "main"); err != nil {
-		t.Fatal(err)
-	}
-	os.WriteFile(sf, []byte(`{"format":2,"pid":1,"start_time":"x","instance":"main"}`), 0o644)
-	if _, _, err := Running(sf, "main"); !errors.Is(err, fsutil.ErrTooNew) {
-		t.Fatalf("err = %v, want ErrTooNew", err)
+	for content, tooNew := range map[string]bool{
+		`{"pid":1,"start_time":"x","instance":"main"}`:            false,
+		`{"format":2,"pid":1,"start_time":"x","instance":"main"}`: true,
+	} {
+		if err := os.WriteFile(sf, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := Running(sf, "main"); errors.Is(err, fsutil.ErrTooNew) != tooNew {
+			t.Errorf("%s: err = %v", content, err)
+		}
 	}
 }
