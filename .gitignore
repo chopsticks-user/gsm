@@ -1,7 +1,8 @@
-# Build output
+# Build output: everything goes to build/ (go build -o build/ ./cmd/gsm,
+# scripts/release-build.sh); /gsm covers a plain go build at the root.
+/build/
 /gsm
 /gsm.exe
-/dist/
 
 # Go: test binaries, profiles and coverage (anywhere in the tree)
 *.test

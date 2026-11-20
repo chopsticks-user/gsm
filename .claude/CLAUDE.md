@@ -13,7 +13,7 @@ Read the doc that matches the task before changing code, and update it in the sa
 - `docs/guide.md`: using gsm, the walkthrough and command reference
 - `docs/architecture.md`: how it's built: code map, data layout, file formats, every command's algorithm, per-OS behavior
 - `docs/design.md`: why: goals, decisions with rejected alternatives, roadmap, known limitations, open questions
-- `docs/development.md`: dev shell, verify, test conventions, adding a game, workflow, labels
+- `docs/development.md`: dev shell, build, verify, test conventions, adding a game, releasing, workflow, labels
 
 Each fact lives in one doc. The rules below are short forms of decisions in those docs, kept here because agents must follow them; change the doc first, then the rule.
 
@@ -33,7 +33,8 @@ Each fact lives in one doc. The rules below are short forms of decisions in thos
 
 Go is not installed globally; use the flake's dev shell (details in `docs/development.md`):
 
-- Build: `nix develop path:./flake -c go build ./cmd/gsm`
+- Build (all output goes to `build/`): `nix develop path:./flake -c go build -o build/ ./cmd/gsm`
+- Release binaries into `build/release/`: `nix develop path:./flake -c scripts/release-build.sh v1.2.3`
 - Test: `nix develop path:./flake -c go test -race ./...`
 - Verify (scripts syntax, gofmt, go vet for Linux/Windows/macOS, race tests including the end-to-end test; CI runs the same): `nix develop path:./flake -c scripts/verify.sh`
 - Smoke test against the real Palworld server (5 GB download, run before a release): `nix develop path:./flake -c scripts/smoke-palworld.sh`
