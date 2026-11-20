@@ -302,7 +302,7 @@ Because the record comes last, a snapshot exists exactly when its record does. A
 
 ### The store lock
 
-`store/lock` is created with `O_CREATE|O_EXCL`, so exactly one process can create it. It holds the owner's PID and start time. If it exists, gsm checks whether the owner still runs (PID and start time, without the process-group rule, since a gsm process is not a server). A dead owner means a crash left it behind: gsm deletes it and retries. A lock file that is empty or not valid JSON (a crash between creating and writing it) is not taken over yet ([#22](https://github.com/chopsticks-user/gsm/issues/22)). A live owner means gsm polls every 200 ms for up to 30 s, then fails with `snapshot store is locked by another gsm process (pid N)`.
+`store/lock` holds the owner's PID and start time. gsm writes that to a temp file in `store/` first and then hard-links it to `store/lock`; the link fails if the lock exists, so exactly one process gets it, and a live holder's lock is never empty or half-written. If it exists, gsm checks whether the owner still runs (PID and start time, without the process-group rule, since a gsm process is not a server). A dead owner means a crash left it behind, and a lock that isn't valid JSON can only come from a crash or an older gsm: either way gsm deletes it and retries. If it can't delete it, gsm fails right away with the reason. A live owner means gsm polls every 200 ms for up to 30 s, then fails with `snapshot store is locked by another gsm process (pid N)`.
 
 Commands that write to the store take it: `save snapshot`, the automatic snapshots in `stop`, `run` and `update`, and `save restore`, which holds it across both the safety snapshot and the swap.
 
@@ -351,7 +351,7 @@ podman run -d --rm --name gsm-<instance>-playit --network=host \
 
 Readers see the complete old file or the complete new one. The containing folder isn't `fsync`ed after the rename, so a power cut might lose the rename itself (the old file remains): the latest snapshot record could be lost, never corrupted.
 
-Other writes are not atomic, on purpose or not yet: `logs/server.log` is appended; restore staging files are verified by hash before the swap; the lock file is created with `O_EXCL` and written in place; and `CopyFile` (the seeded config, `steamclient.so`) truncates and writes in place ([#25](https://github.com/chopsticks-user/gsm/issues/25)).
+Other writes are not atomic, on purpose or not yet: `logs/server.log` is appended; restore staging files are verified by hash before the swap; and `CopyFile` (the seeded config, `steamclient.so`) truncates and writes in place ([#25](https://github.com/chopsticks-user/gsm/issues/25)).
 
 ## Crash safety summary
 
@@ -362,7 +362,7 @@ Other writes are not atomic, on purpose or not yet: `logs/server.log` is appende
 | `start` after launch, before `state.json` | server running, gsm doesn't know | stop it by hand (rare: one write after launch) |
 | snapshot | orphan objects, no record | none needed; cleanup (planned) reclaims space |
 | restore | see [Restore](#restore) | automatic on the next restore |
-| store lock holder crashes | stale lock file | taken over automatically, unless the crash left it empty or unreadable ([#22](https://github.com/chopsticks-user/gsm/issues/22)): then delete `store/lock` by hand |
+| store lock holder crashes | stale lock file | taken over automatically |
 
 ## Cross-platform behavior
 
@@ -376,6 +376,8 @@ Other writes are not atomic, on purpose or not yet: `logs/server.log` is appende
 | graceful stop | SIGTERM to the group | SIGTERM to the group | Ctrl+Break to the group |
 | force stop | SIGKILL to the group | SIGKILL to the group | `taskkill /T /F` |
 | Palworld | yes (NixOS: via `steam-run`) | refused at `create` | yes |
+
+**Filesystem.** `$GSM_HOME` must be on a filesystem with links: symlinks or junctions for `LinkTo`, hard links for the store lock. ext4, btrfs, xfs, APFS and NTFS qualify; FAT and exFAT don't.
 
 **NixOS** (detected by `/etc/NIXOS`): Steam binaries need `steam-run`, which gives the server a fresh `/tmp` (so `$GSM_HOME` can't be under `/tmp`), and the server needs `steamclient.so` in `~/.steam/sdk64`. `doctor` checks for both.
 
