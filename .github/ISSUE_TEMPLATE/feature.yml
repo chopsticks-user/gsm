@@ -1,0 +1,15 @@
+name: Feature or question
+description: Propose a feature, ask for a game, or ask a question
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What do you want to do?
+      description: The problem or question, rather than a solution. For a new game, say which one, whether its dedicated server is on Steam (app ID if you know it) and which OSes it ships a server for.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Ideas
+      description: How you imagine it working, alternatives you considered, or anything else that helps.
