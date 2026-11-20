@@ -29,7 +29,7 @@ func TestStopKillsWholeGroup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Stop(st, time.Second); err != nil {
+	if _, _, err := Stop(st, time.Second); err != nil {
 		t.Fatal(err)
 	}
 	if Alive(State{PID: child, Start: childStart}) {
@@ -51,7 +51,7 @@ func TestLeaderExitsChildKeepsRunning(t *testing.T) {
 	if _, ok := Running(sf, "main"); !ok {
 		t.Fatal("server reported stopped while its child runs")
 	}
-	if _, err := Stop(st, time.Second); err != nil {
+	if _, _, err := Stop(st, time.Second); err != nil {
 		t.Fatal(err)
 	}
 	if _, ok := Running(sf, "main"); ok {

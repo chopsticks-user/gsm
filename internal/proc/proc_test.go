@@ -1,11 +1,13 @@
 package proc
 
 import (
+	"errors"
 	"os"
 	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -68,7 +70,7 @@ func TestStartThenRunning(t *testing.T) {
 
 func TestStopObedient(t *testing.T) {
 	st, sf := launch(t, "obedient", "main")
-	killed, err := Stop(st, 5*time.Second)
+	killed, _, err := Stop(st, 5*time.Second)
 	if err != nil || killed {
 		t.Fatalf("killed=%v err=%v", killed, err)
 	}
@@ -79,7 +81,7 @@ func TestStopObedient(t *testing.T) {
 
 func TestStopStubbornEndsWithKill(t *testing.T) {
 	st, _ := launch(t, "stubborn", "main")
-	killed, err := Stop(st, time.Second)
+	killed, _, err := Stop(st, time.Second)
 	if err != nil || !killed {
 		t.Fatalf("killed=%v err=%v", killed, err)
 	}
@@ -99,10 +101,48 @@ func TestReusedPIDCountsAsStopped(t *testing.T) {
 func TestStoppingOneInstanceLeavesTheOther(t *testing.T) {
 	a, _ := launch(t, "obedient", "a")
 	b, _ := launch(t, "obedient", "b")
-	if _, err := Stop(a, 5*time.Second); err != nil {
+	if _, _, err := Stop(a, 5*time.Second); err != nil {
 		t.Fatal(err)
 	}
 	if !Alive(b) {
 		t.Fatal("stopping a also stopped b")
+	}
+}
+
+func failTerminate(t *testing.T) {
+	orig := terminateGroup
+	terminateGroup = func(int) error { return errors.New("send Ctrl+Break: attach failed") }
+	t.Cleanup(func() { terminateGroup = orig })
+}
+
+// If the stop request fails (on Windows, the Ctrl+Break helper can't attach
+// to the console), Stop still waits out the timeout, then force-stops, and
+// reports the failed request as a warning rather than an error.
+func TestStopForcesWhenRequestFails(t *testing.T) {
+	st, _ := launch(t, "obedient", "main")
+	failTerminate(t)
+	killed, warning, err := Stop(st, time.Second)
+	if err != nil || !killed {
+		t.Fatalf("killed=%v err=%v, want a kill without error", killed, err)
+	}
+	if warning == nil || !strings.Contains(warning.Error(), "attach failed") {
+		t.Fatalf("warning = %v, want the failed request", warning)
+	}
+	if Alive(st) {
+		t.Fatal("still alive")
+	}
+}
+
+// A request that fails because the server is already gone is a clean stop.
+func TestStopRequestFailsServerAlreadyGone(t *testing.T) {
+	st, _ := launch(t, "obedient", "main")
+	kill(st.PID)
+	if !waitGone(st, 5*time.Second) {
+		t.Fatal("fake server didn't die")
+	}
+	failTerminate(t)
+	killed, _, err := Stop(st, time.Second)
+	if err != nil || killed {
+		t.Fatalf("killed=%v err=%v, want a clean stop", killed, err)
 	}
 }

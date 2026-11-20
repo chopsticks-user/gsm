@@ -31,3 +31,9 @@ func TestPalworld(t *testing.T) {
 		t.Fatal("want error for unknown game")
 	}
 }
+
+func TestSetKeysLeaveOutPort(t *testing.T) {
+	if got := Palworld.SetKeys(); !slices.Equal(got, []string{"players"}) {
+		t.Fatalf("SetKeys = %v, want [players]", got)
+	}
+}

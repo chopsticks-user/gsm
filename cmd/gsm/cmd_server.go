@@ -198,7 +198,10 @@ func stop(e env, i instance.Instance) error {
 		return err
 	}
 	fmt.Printf("%s: stopping (up to %s)...\n", i.Name, g.StopTimeout)
-	killed, err := proc.Stop(st, g.StopTimeout)
+	killed, warning, err := proc.Stop(st, g.StopTimeout)
+	if warning != nil {
+		fmt.Fprintf(os.Stderr, "%s: warning: %v\n", i.Name, warning)
+	}
 	if err != nil {
 		return err
 	}
@@ -276,7 +279,11 @@ func cmdRun(e env, args []string) error {
 		fmt.Printf("%s: server exited\n", i.Name)
 	case <-sig:
 		fmt.Printf("\n%s: stopping (up to %s)...\n", i.Name, g.StopTimeout)
-		if _, err := proc.Stop(st, g.StopTimeout); err != nil {
+		_, warning, err := proc.Stop(st, g.StopTimeout)
+		if warning != nil {
+			fmt.Fprintf(os.Stderr, "%s: warning: %v\n", i.Name, warning)
+		}
+		if err != nil {
 			fmt.Fprintf(os.Stderr, "%s: %v\n", i.Name, err)
 		}
 		<-done
