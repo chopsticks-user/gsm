@@ -10,7 +10,7 @@ Security problems go through private reporting instead; see [SECURITY.md](SECURI
 
 ## Proposing a feature or asking a question
 
-Open an issue with the **Feature or question** form. For a new game, say which one, whether its dedicated server is on Steam (and its app ID if you know it), and which OSes it ships a server for. The [roadmap](docs/design.md#roadmap) lists what's planned.
+Open an issue with the **Feature or question** form. For a new game, say which one, whether its dedicated server is on Steam (and its app ID if you know it), and which OSes it ships a server for. The [roadmap](docs/roadmap.md) lists what's planned.
 
 ## Pull requests
 
