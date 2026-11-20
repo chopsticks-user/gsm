@@ -6,7 +6,6 @@ import (
 	"io/fs"
 	"regexp"
 	"slices"
-	"strconv"
 	"strings"
 	"testing"
 )
@@ -44,41 +43,60 @@ func TestSetKeysLeaveOutPort(t *testing.T) {
 	}
 }
 
+var (
+	validName  = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]*$`)
+	validAppID = regexp.MustCompile(`^[1-9][0-9]*$`)
+	platforms  = []string{"linux", "windows", "darwin"} // the release targets
+)
+
+// relPath checks an install-relative path: "/"-separated, not absolute, no
+// "..", and nothing Windows reads as a drive or stream (":").
+func relPath(what, p string) error {
+	if !fs.ValidPath(p) || p == "." || strings.ContainsAny(p, `\:`) {
+		return fmt.Errorf("%s %q must be a relative path inside the install, using /", what, p)
+	}
+	return nil
+}
+
+// within reports whether p is dir or inside it.
+func within(p, dir string) bool { return p == dir || strings.HasPrefix(p, dir+"/") }
+
 // validate checks a game definition for mistakes that would otherwise only
 // show when someone runs that game.
 func validate(g Game) error {
-	if !regexp.MustCompile(`^[a-z0-9][a-z0-9_-]*$`).MatchString(g.Name) || g.Title == "" {
+	if !validName.MatchString(g.Name) || g.Title == "" {
 		return fmt.Errorf("bad name %q or empty title", g.Name)
 	}
-	if _, err := strconv.Atoi(g.SteamAppID); err != nil {
-		return fmt.Errorf("steam app ID %q is not a number", g.SteamAppID)
+	if !validAppID.MatchString(g.SteamAppID) {
+		return fmt.Errorf("steam app ID %q is not a positive number", g.SteamAppID)
 	}
 	if len(g.Launch) == 0 {
 		return errors.New("no platform")
 	}
-	// Install-relative paths: "/"-separated, no "..", not absolute.
-	relPath := func(what, p string) error {
-		if !fs.ValidPath(p) || p == "." || strings.Contains(p, `\`) {
-			return fmt.Errorf("%s %q must be a relative path inside the install, using /", what, p)
-		}
-		return nil
-	}
-	for goos, l := range g.Launch {
-		if !slices.Contains([]string{"linux", "windows", "darwin"}, goos) {
+	for _, goos := range g.Platforms() {
+		l := g.Launch[goos]
+		if !slices.Contains(platforms, goos) {
 			return fmt.Errorf("unknown platform %q", goos)
 		}
-		for what, p := range map[string]string{"command": l.Command, "config dir": l.ConfigDir, "saves dir": l.SavesDir} {
-			if err := relPath(goos+" "+what, p); err != nil {
+		for _, p := range [][2]string{{"command", l.Command}, {"config dir", l.ConfigDir}, {"saves dir", l.SavesDir}} {
+			if err := relPath(goos+" "+p[0], p[1]); err != nil {
 				return err
 			}
+		}
+		// Both are replaced by links to user data, so they must not overlap.
+		if within(l.ConfigDir, l.SavesDir) || within(l.SavesDir, l.ConfigDir) {
+			return fmt.Errorf("%s config dir %q and saves dir %q overlap", goos, l.ConfigDir, l.SavesDir)
+		}
+		if g.DefaultConfig != "" && (within(g.DefaultConfig, l.ConfigDir) || within(g.DefaultConfig, l.SavesDir)) {
+			return fmt.Errorf("default config %q is inside a dir that gets linked to user data", g.DefaultConfig)
 		}
 	}
 	if g.DefaultConfig != "" {
 		if err := relPath("default config", g.DefaultConfig); err != nil {
 			return err
 		}
-		if g.DefaultConfigName == "" || strings.ContainsAny(g.DefaultConfigName, `/\`) {
-			return fmt.Errorf("default config name %q must be a file name", g.DefaultConfigName)
+		if n := g.DefaultConfigName; !fs.ValidPath(n) || n == "." || strings.ContainsAny(n, `/\:`) {
+			return fmt.Errorf("default config name %q must be a file name", n)
 		}
 	}
 	if g.DefaultPort < 1 || g.DefaultPort > 65535 {
@@ -86,6 +104,12 @@ func validate(g Game) error {
 	}
 	if g.StopTimeout <= 0 {
 		return errors.New("stop timeout must be positive")
+	}
+	for _, a := range g.Args {
+		// A brace left after removing valid placeholders is one RenderArgs would pass through.
+		if strings.ContainsAny(placeholder.ReplaceAllString(a, ""), "{}") {
+			return fmt.Errorf("arg %q has a malformed placeholder", a)
+		}
 	}
 	keys := g.Placeholders()
 	for _, k := range keys {
@@ -96,12 +120,6 @@ func validate(g Game) error {
 	for k := range g.Defaults {
 		if !slices.Contains(keys, k) || k == "port" {
 			return fmt.Errorf("default %q is not a placeholder in args (port comes from the instance)", k)
-		}
-	}
-	for _, a := range g.Args {
-		// A brace left after removing valid placeholders is one RenderArgs would pass through.
-		if strings.ContainsAny(placeholder.ReplaceAllString(a, ""), "{}") {
-			return fmt.Errorf("arg %q has a malformed placeholder", a)
 		}
 	}
 	return nil
@@ -121,36 +139,40 @@ func TestBuiltinGamesAreValid(t *testing.T) {
 }
 
 func TestValidateCatchesMistakes(t *testing.T) {
-	bad := map[string]func(*Game){
-		"escaping path": func(g *Game) {
-			g.Launch = map[string]Launch{"linux": {Command: "../x.sh", ConfigDir: "c", SavesDir: "s"}}
-		},
-		"absolute path": func(g *Game) {
-			g.Launch = map[string]Launch{"linux": {Command: "/bin/x", ConfigDir: "c", SavesDir: "s"}}
-		},
-		"backslash path": func(g *Game) {
-			g.Launch = map[string]Launch{"windows": {Command: `a\x.exe`, ConfigDir: "c", SavesDir: "s"}}
-		},
-		"empty saves dir":     func(g *Game) { g.Launch = map[string]Launch{"linux": {Command: "x", ConfigDir: "c"}} },
-		"unknown platform":    func(g *Game) { g.Launch = map[string]Launch{"plan9": {Command: "x", ConfigDir: "c", SavesDir: "s"}} },
-		"no platform":         func(g *Game) { g.Launch = nil },
-		"unknown placeholder": func(g *Game) { g.Args = append(g.Args, "-x={typo}") },
-		"malformed":           func(g *Game) { g.Args = append(g.Args, "-x={Players}") },
-		"unused default":      func(g *Game) { g.Defaults = map[string]string{"players": "4", "playres": "4"} },
-		"port default":        func(g *Game) { g.Defaults = map[string]string{"players": "4", "port": "1"} },
-		"port out of range":   func(g *Game) { g.DefaultPort = 70000 },
-		"no stop timeout":     func(g *Game) { g.StopTimeout = 0 },
-		"escaping config":     func(g *Game) { g.DefaultConfig = "../x.ini" },
-		"config name path":    func(g *Game) { g.DefaultConfigName = "a/b.ini" },
-		"bad app ID":          func(g *Game) { g.SteamAppID = "abc" },
-		"bad name":            func(g *Game) { g.Name = "Pal World" },
+	launch := func(goos string, l Launch) func(*Game) {
+		return func(g *Game) { g.Launch = map[string]Launch{goos: l} }
 	}
-	for name, breakIt := range bad {
+	// Each case breaks Palworld one way and names the error it must cause.
+	for _, c := range []struct {
+		want    string
+		breakIt func(*Game)
+	}{
+		{"must be a relative path", launch("linux", Launch{Command: "../x.sh", ConfigDir: "c", SavesDir: "s"})},
+		{"must be a relative path", launch("linux", Launch{Command: "/bin/x", ConfigDir: "c", SavesDir: "s"})},
+		{"must be a relative path", launch("windows", Launch{Command: `a\x.exe`, ConfigDir: "c", SavesDir: "s"})},
+		{"must be a relative path", launch("windows", Launch{Command: "C:/x.exe", ConfigDir: "c", SavesDir: "s"})},
+		{"must be a relative path", launch("linux", Launch{Command: "x", ConfigDir: "c"})},
+		{"overlap", launch("linux", Launch{Command: "x", ConfigDir: "Saved", SavesDir: "Saved/SaveGames"})},
+		{"overlap", launch("linux", Launch{Command: "x", ConfigDir: "d", SavesDir: "d"})},
+		{"unknown platform", launch("plan9", Launch{Command: "x", ConfigDir: "c", SavesDir: "s"})},
+		{"no platform", func(g *Game) { g.Launch = nil }},
+		{"has no default", func(g *Game) { g.Args = append(slices.Clone(g.Args), "-x={typo}") }},
+		{"malformed", func(g *Game) { g.Args = append(slices.Clone(g.Args), "-x={Players}") }},
+		{"not a placeholder", func(g *Game) { g.Defaults = map[string]string{"players": "4", "playres": "4"} }},
+		{"not a placeholder", func(g *Game) { g.Defaults = map[string]string{"players": "4", "port": "1"} }},
+		{"out of range", func(g *Game) { g.DefaultPort = 70000 }},
+		{"stop timeout", func(g *Game) { g.StopTimeout = 0 }},
+		{"must be a relative path", func(g *Game) { g.DefaultConfig = "../x.ini" }},
+		{"linked to user data", func(g *Game) { g.DefaultConfig = "Pal/Saved/Config/LinuxServer/x.ini" }},
+		{"must be a file name", func(g *Game) { g.DefaultConfigName = "a/b.ini" }},
+		{"must be a file name", func(g *Game) { g.DefaultConfigName = ".." }},
+		{"positive number", func(g *Game) { g.SteamAppID = "-5" }},
+		{"bad name", func(g *Game) { g.Name = "Pal World" }},
+	} {
 		g := Palworld
-		g.Args = slices.Clone(g.Args)
-		breakIt(&g)
-		if validate(g) == nil {
-			t.Errorf("%s: accepted", name)
+		c.breakIt(&g)
+		if err := validate(g); err == nil || !strings.Contains(err.Error(), c.want) {
+			t.Errorf("want error containing %q, got %v", c.want, err)
 		}
 	}
 }
