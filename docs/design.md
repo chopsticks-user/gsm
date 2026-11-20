@@ -1,6 +1,6 @@
 # Design
 
-Why gsm is built the way it is, what it deliberately doesn't do, and where it's going. For how the pieces work, see [architecture.md](architecture.md).
+Why gsm is built the way it is, what it deliberately doesn't do, and what the planned features look like. The order they come in is in [roadmap.md](roadmap.md). For how the pieces work, see [architecture.md](architecture.md).
 
 ## Goals
 
@@ -61,20 +61,17 @@ gsm manages self-hosted game servers on one machine, for someone who runs a few 
 | Data safety | `link_to` | the same logic, plus atomic writes everywhere |
 | Shipping | needs bash, procps, coreutils | one binary |
 
-## Roadmap
+## Planned features
 
-Releases are planned as [GitHub milestones](https://github.com/chopsticks-user/gsm/milestones):
-
-- **v0.1.0:** the first public release: end-to-end tests and CI, versioned release builds, and the open source project setup.
-- **v0.2.0:** full Enshrouded support ([#19](https://github.com/chopsticks-user/gsm/issues/19)).
-
-Planned features follow the same design but aren't built yet. Each has a backlog issue:
+These follow the same design but aren't built yet. Each has an issue; which release brings it, and why in that order, is in [roadmap.md](roadmap.md).
 
 - **Instances** ([#9](https://github.com/chopsticks-user/gsm/issues/9)): `gsm remove <name>` refuses while running, confirms, and keeps the instance's snapshots. `gsm import <game> <name> --config DIR --saves DIR` adopts an existing server's data, for example palworld.sh's.
-- **Config** ([#10](https://github.com/chopsticks-user/gsm/issues/10)): `config edit` opens your editor, `config restore <rev>` checks out an old revision, `config remote` pushes the repo somewhere.
+- **Config:** `config edit` opens your editor and `config restore <rev>` checks out an old revision ([#10](https://github.com/chopsticks-user/gsm/issues/10)); `config remote` pushes an instance's config repo to a git remote ([#43](https://github.com/chopsticks-user/gsm/issues/43)).
 - **Snapshots** ([#11](https://github.com/chopsticks-user/gsm/issues/11)): `save show` and `save diff` inspect records; `save verify` re-hashes every object to detect disk corruption; `save restore --into <new>` forks a new instance; `pin`, `tag` and `annotate` edit records, and pinned snapshots survive pruning; `save prune` applies the retention policy to records, then deletes objects no remaining record mentions.
-- **Games** ([#8](https://github.com/chopsticks-user/gsm/issues/8)): a test that checks every built-in game definition, and a save-flush method per game (for Palworld, its REST API `/v1/api/save`) so snapshots of a running server are consistent.
+- **Games:** a test that checks every built-in game definition ([#42](https://github.com/chopsticks-user/gsm/issues/42)); a general game model with Wine/Proton launchers and non-INI configs, proven by Enshrouded ([#19](https://github.com/chopsticks-user/gsm/issues/19)); a save-flush method per game (for Palworld, its REST API `/v1/api/save`) so snapshots of a running server are consistent ([#8](https://github.com/chopsticks-user/gsm/issues/8)).
+- **On-disk format versions** ([#44](https://github.com/chopsticks-user/gsm/issues/44)): every format carries a version; data without one is version 1, data from a newer gsm is refused with a clear message.
 - **Updates** ([#12](https://github.com/chopsticks-user/gsm/issues/12)): `gsm update --all`.
+- **Unattended running:** log rotation ([#45](https://github.com/chopsticks-user/gsm/issues/45)), and port checks against other programs, not only other instances ([#46](https://github.com/chopsticks-user/gsm/issues/46)).
 - **Addons** ([#13](https://github.com/chopsticks-user/gsm/issues/13)): exercising the playit tunnel for real.
 - **Cross-platform** ([#15](https://github.com/chopsticks-user/gsm/issues/15)): CI on Windows and macOS, and a Job Object instead of the `taskkill` fallback on Windows.
 - **Off-machine backup and recovery** ([#14](https://github.com/chopsticks-user/gsm/issues/14)):
