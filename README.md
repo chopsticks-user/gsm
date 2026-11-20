@@ -27,7 +27,7 @@ main: snapshot 07c32289 (4 files, 33.4 KiB)
 
 ## Status
 
-gsm is pre-1.0. It supports **Palworld** dedicated servers on Linux and Windows (the Windows code hasn't run on real Windows yet). Enshrouded is next ([v0.2.0](https://github.com/chopsticks-user/gsm/milestones)). Off-machine backups and recovery are designed but not built; see the [roadmap](docs/design.md#roadmap).
+gsm is pre-1.0. It supports **Palworld** dedicated servers on Linux and Windows (the Windows code hasn't run on real Windows yet). Enshrouded comes next, in v0.2.0. Off-machine backups and recovery are designed but not built; see the [roadmap](docs/roadmap.md).
 
 ## Install
 
@@ -47,7 +47,8 @@ To build from source, see [docs/development.md](docs/development.md).
 
 - [Guide](docs/guide.md): a walkthrough from install to restore, and the command reference
 - [Architecture](docs/architecture.md): how gsm works underneath
-- [Design](docs/design.md): why it works that way, the roadmap and known limitations
+- [Design](docs/design.md): why it works that way, planned features and known limitations
+- [Roadmap](docs/roadmap.md): the releases ahead and what each one delivers
 - [Development](docs/development.md): building, testing and releasing
 - [Changelog](CHANGELOG.md)
 
