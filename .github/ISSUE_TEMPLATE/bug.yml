@@ -1,0 +1,70 @@
+name: Bug report
+description: Something in gsm doesn't work as documented
+labels: ["type:bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Security problems go through private reporting instead (Security tab, "Report a vulnerability"); see SECURITY.md.
+  - type: input
+    id: version
+    attributes:
+      label: gsm version
+      description: The output of `gsm version`
+      placeholder: gsm v0.1.0 (commit 1a2b3c4d5e6f, go1.27.3)
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: OS
+      options:
+        - Linux
+        - NixOS
+        - Windows
+        - macOS
+        - Other (say which under Actual)
+    validations:
+      required: true
+  - type: dropdown
+    id: arch
+    attributes:
+      label: CPU
+      options:
+        - x86-64 (amd64)
+        - ARM64
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: game
+    attributes:
+      label: Game
+      placeholder: palworld
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The exact gsm commands you ran, in order
+      placeholder: |
+        1. gsm create palworld main
+        2. gsm start main
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual
+      description: What happened instead, with the command output and the relevant part of `gsm logs <name>`. Remove passwords and keys first.
+      render: text
+    validations:
+      required: true

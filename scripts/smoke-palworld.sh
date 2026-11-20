@@ -56,6 +56,9 @@ g doctor
 step "create (downloads the server)"
 g create palworld smoke
 [ -L "$inst/server/Pal/Saved/SaveGames" ] || fail "saves are not linked into the install"
+settings="$inst/config/PalWorldSettings.ini"
+sed -i 's/ServerName="[^"]*"/ServerName="gsm smoke"/' "$settings"
+grep -q 'ServerName="gsm smoke"' "$settings" || fail "couldn't edit ServerName in the seeded settings"
 
 step "start"
 g start smoke
@@ -79,6 +82,8 @@ for try in 1 2 3; do g save snapshot smoke -m "smoke: running" && break; [ $try 
 step "stop"
 g stop smoke
 g status | grep 'smoke .* stopped' >/dev/null || fail "status doesn't show smoke stopped"
+# Palworld keeps settings that differ from its defaults across the first start.
+grep -q 'ServerName="gsm smoke"' "$settings" || fail "the ServerName edit didn't survive the first start"
 stop_id=$(g save list smoke | awk '$4 == "stop" {id = $1} END {print id}')
 [ -n "$stop_id" ] || fail "no stop snapshot"
 want=$(sha256sum "$level" | cut -d' ' -f1)
@@ -93,6 +98,7 @@ step "start again on the restored world"
 g start smoke
 wait_for 120 "the server to listen again" listening
 g stop smoke
+grep -q 'ServerName="gsm smoke"' "$settings" || fail "the ServerName edit didn't survive the second start"
 
 step "update (expect: already up to date)"
 g update smoke

@@ -14,6 +14,7 @@ Read the doc that matches the task before changing code, and update it in the sa
 - `docs/architecture.md`: how it's built: code map, data layout, file formats, every command's algorithm, per-OS behavior
 - `docs/design.md`: why: goals, decisions with rejected alternatives, roadmap, known limitations, open questions
 - `docs/development.md`: dev shell, build, verify, test conventions, adding a game, releasing, workflow, labels
+- Root files: `README.md` (overview, install), `CHANGELOG.md` (per release), `CONTRIBUTING.md` (for contributors, defers to development.md), `SECURITY.md` (vulnerability reporting), `CODE_OF_CONDUCT.md`, `LICENSE` (MIT)
 
 Each fact lives in one doc. The rules below are short forms of decisions in those docs, kept here because agents must follow them; change the doc first, then the rule.
 
