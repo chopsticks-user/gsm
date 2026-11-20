@@ -112,7 +112,11 @@ func openLog(i instance.Instance, rev string) (*os.File, error) {
 }
 
 func start(i instance.Instance) error {
-	if st, ok := proc.Running(i.StateFile(), i.Name); ok {
+	st, ok, err := proc.Running(i.StateFile(), i.Name)
+	if err != nil {
+		return err
+	}
+	if ok {
 		fmt.Printf("%s: already running (pid %d)\n", i.Name, st.PID)
 		return nil
 	}
@@ -126,7 +130,7 @@ func start(i instance.Instance) error {
 	}
 	defer logf.Close()
 	c.Stdout, c.Stderr = logf, logf
-	st, err := proc.Launch(c, i.StateFile(), i.Name)
+	st, err = proc.Launch(c, i.StateFile(), i.Name)
 	if err != nil {
 		return err
 	}
@@ -188,7 +192,10 @@ func cmdStop(e env, args []string) error {
 
 func stop(e env, i instance.Instance) error {
 	stopAddons(i)
-	st, ok := proc.Running(i.StateFile(), i.Name)
+	st, ok, err := proc.Running(i.StateFile(), i.Name)
+	if err != nil {
+		return err
+	}
 	if !ok {
 		fmt.Printf("%s: not running\n", i.Name)
 		return proc.Clear(i.StateFile())
@@ -240,7 +247,11 @@ func cmdRun(e env, args []string) error {
 	if err != nil {
 		return err
 	}
-	if st, ok := proc.Running(i.StateFile(), i.Name); ok {
+	st, ok, err := proc.Running(i.StateFile(), i.Name)
+	if err != nil {
+		return err
+	}
+	if ok {
 		return fmt.Errorf("already running in the background (pid %d)", st.PID)
 	}
 	g, err := game.Get(i.Game)
@@ -265,7 +276,7 @@ func cmdRun(e env, args []string) error {
 	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
 	defer signal.Stop(sig)
 
-	st, err := proc.Launch(c, i.StateFile(), i.Name)
+	st, err = proc.Launch(c, i.StateFile(), i.Name)
 	if err != nil {
 		return err
 	}
@@ -316,7 +327,10 @@ func cmdStatus(e env, args []string) error {
 	}
 	rows := []statusRow{}
 	for _, i := range all {
-		st, ok := proc.Running(i.StateFile(), i.Name)
+		st, ok, err := proc.Running(i.StateFile(), i.Name)
+		if err != nil {
+			return err
+		}
 		r := statusRow{Name: i.Name, Game: i.Game, Port: i.Port, Running: ok, Addons: []string{}}
 		if ok {
 			r.PID = st.PID
@@ -407,7 +421,11 @@ func cmdUpdate(e env, args []string) error {
 	if err != nil {
 		return err
 	}
-	if _, ok := proc.Running(i.StateFile(), i.Name); ok {
+	_, ok, err := proc.Running(i.StateFile(), i.Name)
+	if err != nil {
+		return err
+	}
+	if ok {
 		return fmt.Errorf("stop the server first: gsm stop %s", i.Name)
 	}
 	g, err := game.Get(i.Game)

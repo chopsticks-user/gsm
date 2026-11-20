@@ -3,6 +3,7 @@
 //	store/objects/<2-hex>/<sha256>                zstd-compressed file contents
 //	store/snapshots/<instance>/<timestamp>-<id>.json
 //	store/lock
+//	store/format                                  layout version, see Format
 //
 // Objects are keyed by the hash of the raw bytes, so identical files are
 // stored once across all snapshots and instances. Every write goes through a
@@ -22,6 +23,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -38,7 +40,16 @@ type File struct {
 	Hash string      `json:"hash"`
 }
 
+// Format is the store layout version (store/format) and RecordFormat the
+// snapshot record version that this gsm writes and the newest it reads. A
+// store or record without one was written by v0.1.0 and is version 1.
+const (
+	Format       = 1
+	RecordFormat = 1
+)
+
 type Record struct {
+	Format      int       `json:"format"`
 	ID          string    `json:"id"`
 	Instance    string    `json:"instance"`
 	Game        string    `json:"game"`
@@ -74,6 +85,27 @@ func (s Store) recordDir(instance string) string {
 	return filepath.Join(s.Dir, "snapshots", instance)
 }
 
+// checkFormat refuses a store laid out by a newer gsm. With write set, it
+// records this gsm's layout version in a store that has none yet.
+func (s Store) checkFormat(write bool) error {
+	path := filepath.Join(s.Dir, "format")
+	b, err := os.ReadFile(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		if !write {
+			return nil
+		}
+		return fsutil.WriteAtomic(path, []byte(strconv.Itoa(Format)+"\n"), 0o644)
+	}
+	if err != nil {
+		return err
+	}
+	v, err := strconv.Atoi(strings.TrimSpace(string(b)))
+	if err != nil {
+		return fmt.Errorf("%s: %w", path, err)
+	}
+	return fsutil.CheckFormat(path, v, Format)
+}
+
 // Lock takes the store's write lock, waiting up to wait for another gsm
 // process to finish. The lock is published complete (written to a temp file,
 // then hard-linked into place, which fails if it exists), so a live holder's
@@ -83,12 +115,15 @@ func (s Store) Lock(wait time.Duration) (unlock func(), err error) {
 	if err := os.MkdirAll(s.Dir, 0o755); err != nil {
 		return nil, err
 	}
+	if err := s.checkFormat(true); err != nil {
+		return nil, err
+	}
 	path := filepath.Join(s.Dir, "lock")
 	t, err := proc.StartTime(os.Getpid())
 	if err != nil {
 		return nil, err
 	}
-	me, _ := json.Marshal(proc.State{PID: os.Getpid(), Start: t})
+	me, _ := json.Marshal(proc.State{Format: proc.Format, PID: os.Getpid(), Start: t})
 	tmp, err := os.CreateTemp(s.Dir, "lock.tmp-*")
 	if err != nil {
 		return nil, err
@@ -118,7 +153,14 @@ func (s Store) Lock(wait time.Duration) (unlock func(), err error) {
 		if rerr != nil {
 			return nil, fmt.Errorf("read snapshot store lock: %w", rerr)
 		}
-		if json.Unmarshal(b, &owner) != nil || !proc.Alive(owner) {
+		perr := json.Unmarshal(b, &owner)
+		if perr == nil {
+			// a newer gsm's lock can't be judged stale; never take it over
+			if err := fsutil.CheckFormat(path, owner.Format, proc.Format); err != nil {
+				return nil, err
+			}
+		}
+		if perr != nil || !proc.Alive(owner) {
 			// stale: its owner crashed, or a crash or older gsm left it unreadable
 			if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
 				return nil, fmt.Errorf("remove stale snapshot store lock: %w", err)
@@ -136,6 +178,7 @@ func (s Store) Lock(wait time.Duration) (unlock func(), err error) {
 // The caller must hold the lock.
 func (s Store) Snapshot(dir string, meta Record) (Record, error) {
 	rec := meta
+	rec.Format = RecordFormat
 	rec.Created = time.Now().UTC()
 	rec.ID = newID()
 	rec.Files = []File{}
@@ -264,6 +307,9 @@ func hashFile(path string) (string, int64, fs.FileMode, error) {
 
 // List returns an instance's snapshots, oldest first.
 func (s Store) List(instance string) ([]Record, error) {
+	if err := s.checkFormat(false); err != nil {
+		return nil, err
+	}
 	entries, err := os.ReadDir(s.recordDir(instance))
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, nil
@@ -283,6 +329,9 @@ func (s Store) List(instance string) ([]Record, error) {
 		var r Record
 		if err := json.Unmarshal(b, &r); err != nil {
 			return nil, fmt.Errorf("%s: %w", e.Name(), err)
+		}
+		if err := fsutil.CheckFormat(e.Name(), r.Format, RecordFormat); err != nil {
+			return nil, err
 		}
 		out = append(out, r)
 	}

@@ -113,7 +113,11 @@ func cmdSave(e env, args []string) error {
 	}
 	switch pos[0] {
 	case "snapshot":
-		if _, ok := proc.Running(i.StateFile(), i.Name); ok {
+		_, ok, err := proc.Running(i.StateFile(), i.Name)
+		if err != nil {
+			return err
+		}
+		if ok {
 			fmt.Fprintf(os.Stderr, "warning: %s is running and %s has no save-flush method; the snapshot may miss recent progress\n", i.Name, i.Game)
 		}
 		r, err := takeSnapshot(e, i, "manual", *msg)
@@ -138,7 +142,11 @@ func cmdSave(e env, args []string) error {
 		if len(pos) != 3 {
 			return errors.New("usage: gsm save restore <name> <id>")
 		}
-		if _, ok := proc.Running(i.StateFile(), i.Name); ok {
+		_, ok, err := proc.Running(i.StateFile(), i.Name)
+		if err != nil {
+			return err
+		}
+		if ok {
 			return fmt.Errorf("stop the server first: gsm stop %s", i.Name)
 		}
 		unlock, err := e.store.Lock(lockWait)
@@ -177,7 +185,10 @@ func cmdAddon(e env, args []string) error {
 	if err := addon.Check(a); err != nil {
 		return err
 	}
-	_, running := proc.Running(i.StateFile(), i.Name)
+	_, running, err := proc.Running(i.StateFile(), i.Name)
+	if err != nil {
+		return err
+	}
 	if args[0] == "add" {
 		if i.HasAddon(a) {
 			fmt.Printf("%s: addon %s already added\n", i.Name, a)

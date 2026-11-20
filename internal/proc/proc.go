@@ -17,7 +17,12 @@ import (
 	"github.com/chopsticks-user/gsm/internal/fsutil"
 )
 
+// Format is the version of state.json this gsm writes and the newest it
+// reads. A file without one was written by v0.1.0 and is version 1.
+const Format = 1
+
 type State struct {
+	Format   int    `json:"format"`
 	PID      int    `json:"pid"`
 	Start    string `json:"start_time"`
 	Instance string `json:"instance"`
@@ -44,14 +49,22 @@ func ServerAlive(st State) bool {
 }
 
 // Running reads the state file and reports whether that instance's server
-// is running. A missing, foreign or stale state file means not running.
-func Running(stateFile, instance string) (State, bool) {
+// is running. A missing, foreign or stale state file means not running. A
+// state file from a newer gsm is an error: its server may be running, and
+// calling it stopped could start a second one.
+func Running(stateFile, instance string) (State, bool, error) {
 	var st State
 	b, err := os.ReadFile(stateFile)
-	if err != nil || json.Unmarshal(b, &st) != nil || st.Instance != instance {
-		return st, false
+	if err != nil || json.Unmarshal(b, &st) != nil {
+		return st, false, nil
 	}
-	return st, ServerAlive(st)
+	if err := fsutil.CheckFormat(stateFile, st.Format, Format); err != nil {
+		return st, false, err
+	}
+	if st.Instance != instance {
+		return st, false, nil
+	}
+	return st, ServerAlive(st), nil
 }
 
 // Launch starts c detached from the terminal and records it in stateFile.
@@ -66,7 +79,7 @@ func Launch(c *exec.Cmd, stateFile, instance string) (State, error) {
 		c.Process.Kill()
 		return State{}, err
 	}
-	st := State{PID: c.Process.Pid, Start: t, Instance: instance}
+	st := State{Format: Format, PID: c.Process.Pid, Start: t, Instance: instance}
 	b, _ := json.Marshal(st)
 	if err := fsutil.WriteAtomic(stateFile, b, 0o644); err != nil {
 		Stop(st, 5*time.Second) // don't leave a server gsm can't find

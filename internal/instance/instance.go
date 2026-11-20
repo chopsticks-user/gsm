@@ -19,8 +19,13 @@ import (
 	"github.com/chopsticks-user/gsm/internal/game"
 )
 
+// Format is the version of instance.toml this gsm writes and the newest it
+// reads. A file without one was written by v0.1.0 and is version 1.
+const Format = 1
+
 // Config is instance.toml.
 type Config struct {
+	Format    int               `toml:"format"`
 	Game      string            `toml:"game"`
 	Port      int               `toml:"port"`
 	Settings  map[string]string `toml:"settings,omitempty"`
@@ -73,6 +78,9 @@ func Load(home, name string) (Instance, error) {
 		}
 		return Instance{}, fmt.Errorf("read %s: %w", i.TOMLPath(), err)
 	}
+	if err := fsutil.CheckFormat(i.TOMLPath(), i.Format, Format); err != nil {
+		return Instance{}, err
+	}
 	return i, nil
 }
 
@@ -90,6 +98,9 @@ func List(home string) ([]Instance, error) {
 			continue
 		}
 		i, err := Load(home, e.Name())
+		if errors.Is(err, fsutil.ErrTooNew) {
+			return nil, err // skipping it would look like the instance is gone
+		}
 		if err != nil {
 			continue // a half-created instance has no instance.toml yet
 		}
@@ -100,8 +111,10 @@ func List(home string) ([]Instance, error) {
 }
 
 func (i Instance) Save() error {
+	c := i.Config
+	c.Format = Format
 	var buf bytes.Buffer
-	if err := toml.NewEncoder(&buf).Encode(i.Config); err != nil {
+	if err := toml.NewEncoder(&buf).Encode(c); err != nil {
 		return err
 	}
 	return fsutil.WriteAtomic(i.TOMLPath(), buf.Bytes(), 0o644)
