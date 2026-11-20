@@ -8,6 +8,7 @@ package proc
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -74,16 +75,23 @@ func Launch(c *exec.Cmd, stateFile, instance string) (State, error) {
 	return st, nil
 }
 
+// terminateGroup is terminate, replaceable in tests.
+var terminateGroup = terminate
+
 // Stop asks the server's process group to exit, waits up to timeout, then
-// kills it. It reports whether a kill was needed.
+// kills it. If the stop request can't be sent, it kills right away. It
+// reports whether a kill was needed.
 func Stop(st State, timeout time.Duration) (killed bool, err error) {
-	if err := terminate(st.PID); err != nil {
-		return false, err
-	}
-	if waitGone(st, timeout) {
+	if terr := terminateGroup(st.PID); terr != nil {
+		if !ServerAlive(st) {
+			return false, nil
+		}
+		if err := kill(st.PID); err != nil {
+			return true, fmt.Errorf("%v; force stop also failed: %w", terr, err)
+		}
+	} else if waitGone(st, timeout) {
 		return false, nil
-	}
-	if err := kill(st.PID); err != nil {
+	} else if err := kill(st.PID); err != nil {
 		return true, err
 	}
 	if !waitGone(st, 10*time.Second) {

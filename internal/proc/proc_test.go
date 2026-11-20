@@ -1,6 +1,7 @@
 package proc
 
 import (
+	"errors"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -104,5 +105,21 @@ func TestStoppingOneInstanceLeavesTheOther(t *testing.T) {
 	}
 	if !Alive(b) {
 		t.Fatal("stopping a also stopped b")
+	}
+}
+
+// If the graceful stop can't even be sent (on Windows, the Ctrl+Break helper
+// fails when it can't attach to the console), Stop must still force-stop.
+func TestStopForcesWhenGracefulFails(t *testing.T) {
+	st, _ := launch(t, "obedient", "main")
+	orig := terminateGroup
+	terminateGroup = func(int) error { return errors.New("send Ctrl+Break: attach failed") }
+	t.Cleanup(func() { terminateGroup = orig })
+	killed, err := Stop(st, 5*time.Second)
+	if err != nil || !killed {
+		t.Fatalf("killed=%v err=%v, want a kill without error", killed, err)
+	}
+	if Alive(st) {
+		t.Fatal("still alive")
 	}
 }
