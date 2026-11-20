@@ -25,8 +25,8 @@ Tools gsm calls at runtime come from the host, not the flake: `git`, `steamcmd`,
 
 ```
 nix develop path:./flake -c go build ./cmd/gsm
-GOOS=windows go build ./cmd/gsm
-GOOS=darwin GOARCH=arm64 go build ./cmd/gsm
+nix develop path:./flake -c env GOOS=windows go build ./cmd/gsm
+nix develop path:./flake -c env GOOS=darwin GOARCH=arm64 go build ./cmd/gsm
 ```
 
 ## Verify

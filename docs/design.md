@@ -23,7 +23,7 @@ gsm manages self-hosted game servers on one machine, for someone who runs a few 
 1. **No daemon.** gsm starts a server and exits; later commands find the server again through a state file. There is no service to install, keep running or secure, and gsm can be upgraded at any time without touching running servers.
 2. **The install is disposable.** User data lives outside the steamcmd install and is linked into it, so reinstalling or validating can't touch it. This invariant comes from `scripts/palworld.sh`'s `link_to`, the script gsm grew out of.
 3. **Text goes to git, binaries go to the store.** Configs are small text files where diffs and history help, so they go in git. Saves are large binaries rewritten in full, which would bloat git without limit, so they go to a content-addressed, deduplicated, compressed store.
-4. **Crash-safe writes.** Every file gsm writes goes to a temp file first and is renamed into place, so a crash leaves the old version or the new one, never half a file. A snapshot exists only once its record is written.
+4. **Crash-safe writes.** Every state, metadata and snapshot file gsm writes goes to a temp file first and is renamed into place, so a crash leaves the old version or the new one, never half a file. A snapshot exists only once its record is written. ([Atomic writes](architecture.md#atomic-writes) lists the exceptions.)
 5. **Never guess with user data.** When two copies of a world exist, gsm stops and asks the user to merge, rather than picking one.
 
 ## Decisions

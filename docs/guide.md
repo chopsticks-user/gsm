@@ -61,7 +61,7 @@ settings:      port, players (set with --set k=v)
 stop timeout:  30s
 ```
 
-`settings` lists what `create --set` accepts. Games are built into gsm ([Games](architecture.md#games)); Palworld ships no macOS server, so `create palworld` refuses on macOS.
+`settings` lists the values an instance can set: `port` with `create --port`, the rest with `create --set` ([#24](https://github.com/chopsticks-user/gsm/issues/24) tracks the misleading wording). Games are built into gsm ([Games](architecture.md#games)); Palworld ships no macOS server, so `create palworld` refuses on macOS.
 
 ## Step 3: Create an instance
 

@@ -148,14 +148,15 @@ addons = ["playit"]
   "id": "3735cbf0",
   "instance": "main",
   "game": "palworld",
-  "created": "2026-11-10T00:50:01Z",
+  "created": "2026-11-20T00:50:01Z",
   "message": "before boss fight",
   "trigger": "manual",
   "config_rev": "681f6e5",
-  "server_build": "18519483",
+  "server_build": "25247047",
   "pinned": false,
   "files": [
-    {"path": "0/W/Level.sav", "size": 7, "mode": 420, "hash": "3f9a...c1"}
+    {"path": "0/5367AE08ED5E4715BF9E626522422050/Level.sav", "size": 15185, "mode": 420, "hash": "3f9a...c1"},
+    ...
   ]
 }
 ```
@@ -207,14 +208,16 @@ The "both have files" case is deliberate: gsm never guesses which copy of a worl
 `gsm start <name>`, in order:
 
 1. **Already running?** (the check below) Print `already running` and move on, so `start --all` is safe to repeat.
-2. **Commit the config** (`auto: before start`).
-3. **NixOS preparation:** refuse a `$GSM_HOME` under `/tmp`, because `steam-run` gives the server a fresh, empty `/tmp`; copy `steamclient.so` into `~/.steam/sdk64/`. That folder is often a symlink to the folder the file comes from, and opening the destination for writing would then truncate the source, so `CopyFile` compares device and inode first and skips a copy onto itself.
-4. **Re-check the links** with `LinkTo`.
-5. **Build the command line** from the args template. On NixOS it is prefixed with `steam-run`. The working directory is `server/`.
-6. **Open the log** (`logs/server.log`, appended) and write a header: `=== gsm start <RFC 3339 time>, config <rev> ===`.
-7. **Launch detached** (`proc.Launch`): a new session (`setsid`), so closing the terminal sends no SIGHUP and the server's PID is also its process group ID; stdin from the null device, stdout and stderr to the log; read the start time; write `state.json` atomically.
-8. **Catch an immediate crash:** reap the child in the background and wait 2 seconds. If the server is already gone, clear the state file and report `server exited right after start`. Reaping matters: an unreaped dead child stays a zombie, still a member of its group, and would look alive.
-9. **Start addons.** A failing addon warns; the server keeps running.
+2. **Check the platform:** a game without a launch entry for this OS fails with `<game> has no server for <os>`.
+3. **Commit the config** (`auto: before start`).
+4. **NixOS preparation:** refuse a `$GSM_HOME` under `/tmp`, because `steam-run` gives the server a fresh, empty `/tmp`; copy `steamclient.so` into `~/.steam/sdk64/`. That folder is often a symlink to the folder the file comes from, and opening the destination for writing would then truncate the source, so `CopyFile` compares device and inode first and skips a copy onto itself.
+5. **Re-check the links** with `LinkTo`.
+6. **Find the launcher** in `server/`. If it is missing (a deleted or failed install), fail with `server not installed (...); run: gsm update <name>`. The config commit from step 3 stays.
+7. **Build the command line** from the args template. On NixOS it is prefixed with `steam-run`. The working directory is `server/`.
+8. **Open the log** (`logs/server.log`, appended) and write a header: `=== gsm start <RFC 3339 time>, config <rev> ===`.
+9. **Launch detached** (`proc.Launch`): a new session (`setsid`), so closing the terminal sends no SIGHUP and the server's PID is also its process group ID; stdin from the null device, stdout and stderr to the log; read the start time; write `state.json` atomically.
+10. **Catch an immediate crash:** reap the child in the background and wait 2 seconds. If the server is already gone, clear the state file and report `server exited right after start`. Reaping matters: an unreaped dead child stays a zombie, still a member of its group, and would look alive.
+11. **Start addons.** A failing addon warns; the server keeps running.
 
 Then gsm exits.
 
@@ -266,8 +269,10 @@ The fourth row relies on a POSIX guarantee: the OS never reuses a PID while it i
 
 ### Run in the foreground
 
-`run` uses the same preparation and launch as `start`, except:
+`run` shares steps 2-9 of [Start](#start) (platform check, config commit, NixOS preparation, links, launcher, command line, log, detached launch), except:
 
+- **Already running** is an error (`already running in the background (pid N)`, non-zero exit), not a no-op.
+- **No immediate-crash check:** `run` stays attached, so it sees the exit directly. Addons start right after launch.
 - **Output** goes to the terminal and the log at once, through a combined writer, which makes Go copy the output through a pipe. A pipe works even though the server is in its own session (or console).
 - **Ctrl+C** reaches only gsm, since the server is in another session. gsm catches it (and SIGTERM) and runs the stop sequence, snapshot included.
 - **The state file** is still written, so `status` elsewhere sees the server.
@@ -297,7 +302,7 @@ Because the record comes last, a snapshot exists exactly when its record does. A
 
 ### The store lock
 
-`store/lock` is created with `O_CREATE|O_EXCL`, so exactly one process can create it. It holds the owner's PID and start time. If it exists, gsm checks whether the owner still runs (PID and start time, without the process-group rule, since a gsm process is not a server). A dead owner means a crash left it behind: gsm deletes it and retries. A live owner means gsm polls every 200 ms for up to 30 s, then fails with `snapshot store is locked by another gsm process (pid N)`.
+`store/lock` is created with `O_CREATE|O_EXCL`, so exactly one process can create it. It holds the owner's PID and start time. If it exists, gsm checks whether the owner still runs (PID and start time, without the process-group rule, since a gsm process is not a server). A dead owner means a crash left it behind: gsm deletes it and retries. A lock file that is empty or not valid JSON (a crash between creating and writing it) is not taken over yet ([#22](https://github.com/chopsticks-user/gsm/issues/22)). A live owner means gsm polls every 200 ms for up to 30 s, then fails with `snapshot store is locked by another gsm process (pid N)`.
 
 Commands that write to the store take it: `save snapshot`, the automatic snapshots in `stop`, `run` and `update`, and `save restore`, which holds it across both the safety snapshot and the swap.
 
@@ -346,6 +351,8 @@ podman run -d --rm --name gsm-<instance>-playit --network=host \
 
 Readers see the complete old file or the complete new one. The containing folder isn't `fsync`ed after the rename, so a power cut might lose the rename itself (the old file remains): the latest snapshot record could be lost, never corrupted.
 
+Other writes are not atomic, on purpose or not yet: `logs/server.log` is appended; restore staging files are verified by hash before the swap; the lock file is created with `O_EXCL` and written in place; and `CopyFile` (the seeded config, `steamclient.so`) truncates and writes in place ([#25](https://github.com/chopsticks-user/gsm/issues/25)).
+
 ## Crash safety summary
 
 | Interrupted operation | Worst case | Recovery |
@@ -355,7 +362,7 @@ Readers see the complete old file or the complete new one. The containing folder
 | `start` after launch, before `state.json` | server running, gsm doesn't know | stop it by hand (rare: one write after launch) |
 | snapshot | orphan objects, no record | none needed; cleanup (planned) reclaims space |
 | restore | see [Restore](#restore) | automatic on the next restore |
-| store lock holder crashes | stale lock file | taken over automatically |
+| store lock holder crashes | stale lock file | taken over automatically, unless the crash left it empty or unreadable ([#22](https://github.com/chopsticks-user/gsm/issues/22)): then delete `store/lock` by hand |
 
 ## Cross-platform behavior
 
@@ -372,6 +379,6 @@ Readers see the complete old file or the complete new one. The containing folder
 
 **NixOS** (detected by `/etc/NIXOS`): Steam binaries need `steam-run`, which gives the server a fresh `/tmp` (so `$GSM_HOME` can't be under `/tmp`), and the server needs `steamclient.so` in `~/.steam/sdk64`. `doctor` checks for both.
 
-**Windows.** There is no SIGTERM; the closest is a Ctrl+Break console event, which `GenerateConsoleCtrlEvent` can send to a process group. The sender must share the server's console, so the server gets a hidden console of its own (`CREATE_NO_WINDOW`). Attaching to it would disturb gsm's own terminal, so gsm starts a short-lived copy of itself (`gsm __gsm-ctrl-break <pid>`, handled by `proc.HandleHelper`) that does `FreeConsole`, `AttachConsole(pid)` and `GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, pid)`. The force-stop fallback, `taskkill /T`, walks the tree by parent PID. Directory junctions appear in Go 1.23+ as `ModeIrregular`, not symlinks, which `LinkTo` accounts for. All of this compiles but hasn't run on real Windows.
+**Windows.** There is no SIGTERM; the closest is a Ctrl+Break console event, which `GenerateConsoleCtrlEvent` can send to a process group. The sender must share the server's console, so the server gets a hidden console of its own (`CREATE_NO_WINDOW`). Attaching to it would disturb gsm's own terminal, so gsm starts a short-lived copy of itself (`gsm __gsm-ctrl-break <pid>`, handled by `proc.HandleHelper`) that does `FreeConsole`, `AttachConsole(pid)` and `GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, pid)`. The force-stop fallback, `taskkill /T`, walks the tree by parent PID. It runs only when the graceful stop times out; if the helper itself fails, `stop` currently returns the error without force-stopping ([#23](https://github.com/chopsticks-user/gsm/issues/23)). Directory junctions appear in Go 1.23+ as `ModeIrregular`, not symlinks, which `LinkTo` accounts for. All of this compiles but hasn't run on real Windows.
 
 **macOS.** Few dedicated servers ship macOS binaries, so `create` refuses games without a macOS launch entry. The rest works as on Linux, except the start time lookup.
