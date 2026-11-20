@@ -4,7 +4,7 @@ How to build, test and change gsm. For how the code is organized, see [architect
 
 ## Dev environment
 
-The repo ships a Nix flake with the toolchain: Go, gopls, and gcc (the race detector needs cgo).
+The repo ships a Nix flake with the toolchain: Go, gopls, gcc (the race detector needs cgo) and govulncheck.
 
 ```
 nix develop path:./flake            # a shell with the toolchain
@@ -67,6 +67,17 @@ Repeats the lifecycle against the real Palworld dedicated server: it downloads i
 ### CI
 
 `.github/workflows/ci.yml` runs verify through the flake on `ubuntu-latest` for every pull request and every push to `main`, the same command as locally. Linux only for now; Windows and macOS runners are [#15](https://github.com/chopsticks-user/gsm/issues/15).
+
+CI then runs `govulncheck -test ./...` for Linux, Windows and macOS, which fails on a known vulnerability in code gsm actually calls, tests included (one in a dependency function gsm never calls is reported but doesn't fail). It needs the network for the vulnerability database, so it's a CI step rather than part of verify. CI also runs weekly on a schedule, so a vulnerability published against unchanged code shows up without a pull request. Run it locally with `nix develop path:./flake -c govulncheck -test ./...`.
+
+Dependabot (`.github/dependabot.yml`) opens weekly pull requests for Go module and GitHub Actions updates, one grouped PR per ecosystem, which CI checks like any other.
+
+Two things nothing updates automatically, and both have the same fix:
+
+- **A vulnerability in Go's standard library.** govulncheck checks the standard library of the Go the flake provides, so a stdlib advisory fails CI on every PR, even ones that touch no Go code, until a newer Go is in the flake.
+- **A Dependabot PR that raises `go.mod`'s `go` line** past the flake's Go fails, since the flake's Go doesn't download newer toolchains.
+
+The fix is updating the flake inputs (`flake/flake.lock`), which Dependabot doesn't support: `nix flake update --flake path:./flake`, then verify and open a PR.
 
 ## Adding a game
 
