@@ -18,10 +18,14 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - name: Tag is on main
+      # Minor releases are tagged on main, patches on a release-0.X branch
+      # (docs/development.md, Versioning).
+      - name: Tag is on main or a release branch
         run: |
-          git merge-base --is-ancestor "$GITHUB_SHA" origin/main \
-            || { echo "::error::$GITHUB_REF_NAME is not on main; tag the merge commit on main"; exit 1; }
+          for b in origin/main $(git for-each-ref --format='%(refname:short)' 'refs/remotes/origin/release-*'); do
+            git merge-base --is-ancestor "$GITHUB_SHA" "$b" && exit 0
+          done
+          echo "::error::$GITHUB_REF_NAME is not on main or a release-* branch"; exit 1
       - uses: cachix/install-nix-action@v31
       - name: Verify
         run: nix develop path:./flake -c scripts/verify.sh

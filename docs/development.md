@@ -86,16 +86,42 @@ The fix is updating the flake inputs (`flake/flake.lock`), which Dependabot does
 3. Check the definition with `gsm game show <game>`, then run the whole lifecycle against a real install: `create`, `start`, `status`, `stop`, `save restore`, `update`.
 4. Document the game in [guide.md](guide.md) and any new limitation in [design.md](design.md#known-limitations).
 
+## Versioning
+
+gsm follows [Semantic Versioning](https://semver.org) with a `v` prefix: `v0.1.0`, `v0.1.1`, `v1.0.0`; `v0.2.0-rc.1` for a pre-release.
+
+**Minor versions are planned; patch versions aren't.** Each minor release is a GitHub milestone with one theme and exit criteria in [roadmap.md](roadmap.md). A patch release fixes what's already released, when a fix can't wait for the next minor.
+
+| | Before 1.0 | From 1.0 |
+|---|---|---|
+| Major `X.0.0` | (stays 0) | a breaking CLI change, or an on-disk format change that needs a migration |
+| Minor `0.X.0` / `1.X.0` | one milestone's capability; may change the CLI or on-disk formats, noted in the CHANGELOG | new features, backwards compatible |
+| Patch `0.x.Y` / `1.x.Y` | fixes only | fixes only |
+
+**Patch rule.** A patch fixes a regression or a bug in a released feature. It never adds a feature or changes the CLI or an on-disk format. Cut one when a `P0` or `P1` fix (data loss, a broken core command, security) lands; smaller fixes wait for the next minor. Patches have no milestones.
+
+Patches come from a release branch, not `main`, because `main` already carries unfinished work for the next minor:
+
+1. The fix goes to `main` first, through the normal issue and pull request.
+2. The first patch of a minor creates its branch from the last tag: `git switch -c release-0.1 v0.1.0` and push it. Later patches reuse it.
+3. Cherry-pick the fix onto the release branch (`git cherry-pick -x <commit>`) in a pull request against `release-0.X`, with a CHANGELOG section for the patch.
+4. Tag the release branch's merge commit and push the tag, as in [Releasing](#releasing).
+
+**Milestones.**
+
+- There's one milestone per minor version, plus v1.0.0. Its description is a one-line theme; the full theme, order and exit criteria live in [roadmap.md](roadmap.md), and the milestone holds the issues.
+- An issue joins a milestone when it's needed for that milestone's exit criteria, not just because it would be nice. Issues that fit no theme stay without a milestone and are listed under Not planned in roadmap.md.
+- An issue that won't make its release moves to the next milestone; if that changes what the release delivers, roadmap.md changes in the same step.
+- A release is cut when its milestone has no open issues and its exit criteria hold.
+
 ## Releasing
 
-Versions follow [Semantic Versioning](https://semver.org) with a `v` prefix (`v0.1.0`; `v0.2.0-rc.1` for a pre-release). Before 1.0.0, a minor version may change the CLI or data formats.
+What a version number means is in [Versioning](#versioning). To cut a release:
 
-To cut a release:
-
-1. Make sure every issue in the version's [milestone](https://github.com/chopsticks-user/gsm/milestones) is closed and CI is green on `main`.
+1. For a minor release: every issue in its [milestone](https://github.com/chopsticks-user/gsm/milestones) is closed, its exit criteria in [roadmap.md](roadmap.md) hold, and CI is green on `main`. For a patch: the fixes are cherry-picked onto `release-0.X` (see [Versioning](#versioning)).
 2. Run the smoke test with a game client: `nix develop path:./flake -c scripts/smoke-palworld.sh --hold`, and connect to the server on UDP 8211 while it holds.
-3. In `CHANGELOG.md`, rename `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD`, start a new empty `## [Unreleased]` above it, update the links at the bottom, and merge that through a pull request. A pre-release (`vX.Y.Z-rc.N`) can skip this: without a section of its own, its notes come from `[Unreleased]`.
-4. Tag the merge commit on `main` and push the tag:
+3. In `CHANGELOG.md`, rename `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD`, start a new empty `## [Unreleased]` above it, update the links at the bottom, and merge that through a pull request. For a patch, add its section on the release branch and the same section to `main`'s CHANGELOG, so `main` keeps the full history. A pre-release (`vX.Y.Z-rc.N`) can skip this: without a section of its own, its notes come from `[Unreleased]`.
+4. Tag the merge commit on `main` (or on `release-0.X` for a patch) and push the tag:
    ```
    git tag -a vX.Y.Z -m "gsm vX.Y.Z"
    git push origin vX.Y.Z
@@ -103,7 +129,7 @@ To cut a release:
 5. `.github/workflows/release.yml` then verifies the tagged commit, builds the binaries (`scripts/release-build.sh`), takes the notes from the version's CHANGELOG section (`scripts/release-notes.sh`, which fails if the section is missing) and publishes the GitHub release with every binary and `SHA256SUMS`. A tag with a `-` suffix becomes a pre-release. The release is created only after everything is built, and never overwrites an existing one.
 6. Check the release page, download one binary, verify it against `SHA256SUMS`, and run `gsm version`.
 
-If the workflow fails, fix the problem on `main`, delete any release it left behind (`gh release delete vX.Y.Z`, in case an asset upload failed after the release was created), delete the tag (`git push --delete origin vX.Y.Z`, `git tag -d vX.Y.Z`), and tag again. The workflow also refuses a tag that isn't on `main`.
+If the workflow fails, fix the problem on `main`, delete any release it left behind (`gh release delete vX.Y.Z`, in case an asset upload failed after the release was created), delete the tag (`git push --delete origin vX.Y.Z`, `git tag -d vX.Y.Z`), and tag again. The workflow also refuses a tag that isn't on `main` or a `release-*` branch.
 
 To try a release build locally: `nix develop path:./flake -c scripts/release-build.sh v0.0.0-test`.
 
@@ -138,7 +164,8 @@ Keep docs in step with code, in the same PR:
 |---|---|
 | [guide.md](guide.md) | using gsm: the walkthrough and command reference |
 | [architecture.md](architecture.md) | how gsm is built: packages, data, formats, algorithms, per-OS behavior |
-| [design.md](design.md) | why: goals, decisions and rejected alternatives, roadmap, limitations, open questions |
+| [design.md](design.md) | why: goals, decisions and rejected alternatives, planned features, limitations, open questions |
+| [roadmap.md](roadmap.md) | the releases ahead: theme, order and exit criteria per milestone |
 | development.md | this file: dev environment, verify, tests, releasing, workflow |
 | [README.md](../README.md) | what gsm is, install, links into these docs |
 | [CHANGELOG.md](../CHANGELOG.md) | what changed in each release |

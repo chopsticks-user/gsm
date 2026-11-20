@@ -12,8 +12,9 @@ Read the doc that matches the task before changing code, and update it in the sa
 
 - `docs/guide.md`: using gsm, the walkthrough and command reference
 - `docs/architecture.md`: how it's built: code map, data layout, file formats, every command's algorithm, per-OS behavior
-- `docs/design.md`: why: goals, decisions with rejected alternatives, roadmap, known limitations, open questions
-- `docs/development.md`: dev shell, build, verify, test conventions, adding a game, releasing, workflow, labels
+- `docs/design.md`: why: goals, decisions with rejected alternatives, planned features, known limitations, open questions
+- `docs/roadmap.md`: the releases ahead (v0.2.0 to v1.0.0): theme, order and exit criteria each; GitHub milestones hold the issues
+- `docs/development.md`: dev shell, build, verify, test conventions, adding a game, versioning (patch rule, release branches, milestones), releasing, workflow, labels
 - Root files: `README.md` (overview, install), `CHANGELOG.md` (per release), `CONTRIBUTING.md` (for contributors, defers to development.md), `SECURITY.md` (vulnerability reporting), `CODE_OF_CONDUCT.md`, `LICENSE` (MIT)
 
 Each fact lives in one doc. The rules below are short forms of decisions in those docs, kept here because agents must follow them; change the doc first, then the rule.
@@ -46,7 +47,7 @@ Go is not installed globally; use the flake's dev shell (details in `docs/develo
 
 ## Workflow
 
-GitHub: `chopsticks-user/gsm` (private until v0.1.0). Base branch is `main`. The issue/PR workflow is in `docs/development.md`.
+GitHub: `chopsticks-user/gsm` (private until v0.1.0). Base branch is `main`; patches go through `release-0.X` branches. The issue/PR workflow and the versioning policy are in `docs/development.md`. Every open issue belongs to a milestone (see `docs/roadmap.md`) or is listed there as not planned.
 
 Labels in use: `type:bug`, `type:feature`, `type:chore`, `type:docs` (one per issue); `P0` (outage, data loss, security) to `P3` (minor), one per issue; `needs-info`; `ready`.
 
