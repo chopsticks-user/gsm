@@ -4,3 +4,6 @@
 
 # IDE
 .idea/
+
+# Go state from the dev shell
+/.go/

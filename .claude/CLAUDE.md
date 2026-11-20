@@ -103,14 +103,23 @@ internal/steam      steamcmd, build ID, NixOS steamclient.so setup
 internal/gitrepo    git CLI wrapper
 internal/store      snapshot store
 internal/addon      playit podman addon
+flake/              Nix dev shell (flake.nix, flake.lock)
+scripts/            verify.sh (the verify command), palworld.sh (reference)
 ```
 
 Tests use the real filesystem via `t.TempDir()`, and fake servers or steamcmd by re-running the test binary from `TestMain` with an env var set (see `internal/proc/proc_test.go`).
 
 ## Tooling
 
-Go is not installed globally. Use `nix shell nixpkgs#go` (nixpkgs ships Go 1.26). `git`, `steamcmd`, `steam-run` and `podman` are available on the dev host.
+Go is not installed globally. `flake/flake.nix` provides a dev shell with Go, gopls and gcc (the race detector needs gcc). Enter it with `nix develop path:./flake` or prefix single commands with `nix develop path:./flake -c`. `nix run path:./flake#install` writes `~/.local/share/applications/code-gsm.desktop`, which opens VS Code inside the shell (`#uninstall` removes it); on an impermanent home it survives a reboot only if that directory is persisted. Entered from inside the repo, the shell keeps Go's module and build caches in the gitignored `.go/` at the repo root instead of `~/go` (outside a git repo it warns and leaves Go's defaults). `git`, `steamcmd`, `steam-run` and `podman` come from the dev host, not the flake.
 
-- Build: `nix shell nixpkgs#go -c go build ./cmd/gsm`
-- Test: `nix shell nixpkgs#go nixpkgs#gcc -c go test -race ./...` (the race detector needs gcc)
+- Build: `nix develop path:./flake -c go build ./cmd/gsm`
+- Test: `nix develop path:./flake -c go test -race ./...`
 - Cross-compile check: `GOOS=windows go build ./cmd/gsm` and `GOOS=darwin GOARCH=arm64 go build ./cmd/gsm`
+- Verify (gofmt, go vet for Linux, Windows and macOS, race tests): `nix develop path:./flake -c scripts/verify.sh`
+
+## Workflow
+
+- GitHub: `chopsticks-user/gsm` (private). Base branch is `main`.
+- Labels in use: `bug`, `enhancement`, `documentation`.
+- Docs: `docs/how-it-works.md` is the walkthrough and technical reference; `docs/tasks.md` tracks what is built and what is left.
