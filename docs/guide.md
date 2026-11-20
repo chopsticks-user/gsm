@@ -57,11 +57,11 @@ steam app:     2394010
 platforms:     linux, windows
 default port:  8211
 args:          -port={port} -players={players} -useperfthreads -NoAsyncLoadingThread -UseMultithreadForDS
-settings:      port, players (set with --set k=v)
+settings:      players (set with --set k=v); port with --port
 stop timeout:  30s
 ```
 
-`settings` lists the values an instance can set: `port` with `create --port`, the rest with `create --set` ([#24](https://github.com/chopsticks-user/gsm/issues/24) tracks the misleading wording). Games are built into gsm ([Games](architecture.md#games)); Palworld ships no macOS server, so `create palworld` refuses on macOS.
+`settings` lists what an instance can set at `create`. Games are built into gsm ([Games](architecture.md#games)); Palworld ships no macOS server, so `create palworld` refuses on macOS.
 
 ## Step 3: Create an instance
 

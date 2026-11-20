@@ -37,8 +37,8 @@ func cmdGame(e env, args []string) error {
 		}
 		fmt.Printf("name:          %s\ntitle:         %s\nsteam app:     %s\nplatforms:     %s\ndefault port:  %d\n",
 			g.Name, g.Title, g.SteamAppID, strings.Join(g.Platforms(), ", "), g.DefaultPort)
-		fmt.Printf("args:          %s\nsettings:      %s (set with --set k=v)\nstop timeout:  %s\n",
-			strings.Join(g.Args, " "), strings.Join(g.Placeholders(), ", "), g.StopTimeout)
+		fmt.Printf("args:          %s\nsettings:      %s\nstop timeout:  %s\n",
+			strings.Join(g.Args, " "), settingsLine(g), g.StopTimeout)
 		return nil
 	}
 	return errors.New("usage: gsm game list | show <game>")
@@ -83,11 +83,12 @@ func cmdCreate(e env, args []string) error {
 	}
 
 	settings := map[string]string{}
+	keys := g.SetKeys()
 	for _, s := range sets {
 		k, v, ok := strings.Cut(s, "=")
-		if !ok || k == "port" || !slices.Contains(g.Placeholders(), k) {
-			return fmt.Errorf("bad --set %q (settings for %s: %s; use --port for the port)",
-				s, g.Name, strings.Join(g.Placeholders(), ", "))
+		if !ok || !slices.Contains(keys, k) {
+			return fmt.Errorf("bad --set %q (%s --set keys: %s; use --port for the port)",
+				s, g.Name, strings.Join(keys, ", "))
 		}
 		settings[k] = v
 	}
@@ -241,4 +242,13 @@ func cmdDoctor(e env, args []string) error {
 		return fmt.Errorf("%d problem(s) found", len(problems))
 	}
 	return nil
+}
+
+// settingsLine describes what an instance of g can set at create.
+func settingsLine(g game.Game) string {
+	keys := g.SetKeys()
+	if len(keys) == 0 {
+		return "none; port with --port"
+	}
+	return strings.Join(keys, ", ") + " (set with --set k=v); port with --port"
 }
