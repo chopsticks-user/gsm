@@ -259,7 +259,7 @@ The fourth row relies on a POSIX guarantee: the OS never reuses a PID while it i
 
 1. **Stop addons** first, so the tunnel goes down before the game.
 2. **Not running?** Print `not running`, remove a stale state file, done.
-3. **SIGTERM to the whole group** (`kill(-pgid, SIGTERM)`). Signalling only the launched PID would miss the real server.
+3. **SIGTERM to the whole group** (`kill(-pgid, SIGTERM)`; Ctrl+Break on Windows). Signalling only the launched PID would miss the real server. If sending the request fails, gsm warns and carries on with step 4 anyway: the request may have been delivered, and the server may be saving.
 4. **Wait,** checking every 200 ms with the running check, up to the game's stop timeout.
 5. **SIGKILL to the group** if it's still there, wait up to 10 more seconds, report `did not exit in time, killed`.
 6. **Clear `state.json`.**
@@ -302,7 +302,7 @@ Because the record comes last, a snapshot exists exactly when its record does. A
 
 ### The store lock
 
-`store/lock` is created with `O_CREATE|O_EXCL`, so exactly one process can create it. It holds the owner's PID and start time. If it exists, gsm checks whether the owner still runs (PID and start time, without the process-group rule, since a gsm process is not a server). A dead owner means a crash left it behind: gsm deletes it and retries. A lock file that is empty or not valid JSON (a crash between creating and writing it) is not taken over yet ([#22](https://github.com/chopsticks-user/gsm/issues/22)). A live owner means gsm polls every 200 ms for up to 30 s, then fails with `snapshot store is locked by another gsm process (pid N)`.
+`store/lock` holds the owner's PID and start time. gsm writes that to a temp file in `store/` first and then hard-links it to `store/lock`; the link fails if the lock exists, so exactly one process gets it, and a live holder's lock is never empty or half-written. If it exists, gsm checks whether the owner still runs (PID and start time, without the process-group rule, since a gsm process is not a server). A dead owner means a crash left it behind, and a lock that isn't valid JSON can only come from a crash or an older gsm: either way gsm deletes it and retries. If it can't delete it, gsm fails right away with the reason. A live owner means gsm polls every 200 ms for up to 30 s, then fails with `snapshot store is locked by another gsm process (pid N)`.
 
 Commands that write to the store take it: `save snapshot`, the automatic snapshots in `stop`, `run` and `update`, and `save restore`, which holds it across both the safety snapshot and the swap.
 
@@ -351,7 +351,7 @@ podman run -d --rm --name gsm-<instance>-playit --network=host \
 
 Readers see the complete old file or the complete new one. The containing folder isn't `fsync`ed after the rename, so a power cut might lose the rename itself (the old file remains): the latest snapshot record could be lost, never corrupted.
 
-Other writes are not atomic, on purpose or not yet: `logs/server.log` is appended; restore staging files are verified by hash before the swap; and the lock file is created with `O_EXCL` and written in place.
+Other writes are not atomic, on purpose: `logs/server.log` is appended, and restore staging files are verified by hash before the swap.
 
 ## Crash safety summary
 
@@ -362,7 +362,7 @@ Other writes are not atomic, on purpose or not yet: `logs/server.log` is appende
 | `start` after launch, before `state.json` | server running, gsm doesn't know | stop it by hand (rare: one write after launch) |
 | snapshot | orphan objects, no record | none needed; cleanup (planned) reclaims space |
 | restore | see [Restore](#restore) | automatic on the next restore |
-| store lock holder crashes | stale lock file | taken over automatically, unless the crash left it empty or unreadable ([#22](https://github.com/chopsticks-user/gsm/issues/22)): then delete `store/lock` by hand |
+| store lock holder crashes | stale lock file | taken over automatically |
 
 ## Cross-platform behavior
 
@@ -377,8 +377,10 @@ Other writes are not atomic, on purpose or not yet: `logs/server.log` is appende
 | force stop | SIGKILL to the group | SIGKILL to the group | `taskkill /T /F` |
 | Palworld | yes (NixOS: via `steam-run`) | refused at `create` | yes |
 
+**Filesystem.** `$GSM_HOME` must be on a filesystem with links: symlinks or junctions for `LinkTo`, hard links for the store lock. ext4, btrfs, xfs, APFS and NTFS qualify; FAT and exFAT don't.
+
 **NixOS** (detected by `/etc/NIXOS`): Steam binaries need `steam-run`, which gives the server a fresh `/tmp` (so `$GSM_HOME` can't be under `/tmp`), and the server needs `steamclient.so` in `~/.steam/sdk64`. `doctor` checks for both.
 
-**Windows.** There is no SIGTERM; the closest is a Ctrl+Break console event, which `GenerateConsoleCtrlEvent` can send to a process group. The sender must share the server's console, so the server gets a hidden console of its own (`CREATE_NO_WINDOW`). Attaching to it would disturb gsm's own terminal, so gsm starts a short-lived copy of itself (`gsm __gsm-ctrl-break <pid>`, handled by `proc.HandleHelper`) that does `FreeConsole`, `AttachConsole(pid)` and `GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, pid)`. The force-stop fallback, `taskkill /T`, walks the tree by parent PID. It runs only when the graceful stop times out; if the helper itself fails, `stop` currently returns the error without force-stopping ([#23](https://github.com/chopsticks-user/gsm/issues/23)). Directory junctions appear in Go 1.23+ as `ModeIrregular`, not symlinks, which `LinkTo` accounts for. All of this compiles but hasn't run on real Windows.
+**Windows.** There is no SIGTERM; the closest is a Ctrl+Break console event, which `GenerateConsoleCtrlEvent` can send to a process group. The sender must share the server's console, so the server gets a hidden console of its own (`CREATE_NO_WINDOW`). Attaching to it would disturb gsm's own terminal, so gsm starts a short-lived copy of itself (`gsm __gsm-ctrl-break <pid>`, handled by `proc.HandleHelper`) that does `FreeConsole`, `AttachConsole(pid)` and `GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, pid)`. The force-stop fallback, `taskkill /T`, walks the tree by parent PID. It runs when the graceful stop times out, including when the helper failed (for example when it can't attach to the console), which gsm reports as a warning. Directory junctions appear in Go 1.23+ as `ModeIrregular`, not symlinks, which `LinkTo` accounts for. All of this compiles but hasn't run on real Windows.
 
 **macOS.** Few dedicated servers ship macOS binaries, so `create` refuses games without a macOS launch entry. The rest works as on Linux, except the start time lookup.

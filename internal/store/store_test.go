@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -149,4 +150,48 @@ func TestStaleLockIsTakenOver(t *testing.T) {
 		t.Fatal(err)
 	}
 	unlock2()
+}
+
+// gsm publishes its lock complete, so an empty or partial lock can only be
+// left by a crash or an older gsm, and is taken over at once.
+func TestUnreadableLockIsTakenOver(t *testing.T) {
+	for name, content := range map[string]string{"empty": "", "garbage": `{"pid":12`} {
+		t.Run(name, func(t *testing.T) {
+			s, _ := setup(t)
+			if err := os.MkdirAll(s.Dir, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			write(t, filepath.Join(s.Dir, "lock"), content)
+			unlock, err := s.Lock(300 * time.Millisecond)
+			if err != nil {
+				t.Fatal(err)
+			}
+			unlock()
+		})
+	}
+}
+
+// The lock is never visible empty, and taking and releasing it leaves only
+// the store's own folders behind.
+func TestLockIsPublishedCompleteAndCleansUp(t *testing.T) {
+	s, _ := setup(t)
+	unlock, err := s.Lock(time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var owner proc.State
+	b, err := os.ReadFile(filepath.Join(s.Dir, "lock"))
+	if err != nil || json.Unmarshal(b, &owner) != nil || owner.PID != os.Getpid() {
+		t.Fatalf("lock content %q (read error %v) doesn't name this process", b, err)
+	}
+	unlock()
+	entries, err := os.ReadDir(s.Dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), "lock") {
+			t.Errorf("%s left in the store after unlock", e.Name())
+		}
+	}
 }
