@@ -4,23 +4,20 @@ All notable changes to gsm are listed here. The format follows [Keep a Changelog
 
 ## [Unreleased]
 
-The first release, v0.1.0, is in progress ([milestone](https://github.com/chopsticks-user/gsm/milestone/1)).
+## [0.1.0] - 2026-11-19
+
+The first release: Palworld dedicated servers on Linux and Windows.
 
 ### Added
 
-- Palworld dedicated servers on Linux and Windows, as named instances: several per machine, each with its own config, saves and port (`gsm create`, `list`, `game list|show`).
-- Server lifecycle without a daemon: `start`, `stop`, `restart`, `run` (foreground), `status [--json]`, `logs [-f]`, and `update` through steamcmd. Servers are found by PID, start time and instance, and stopped as a whole process group.
+- Palworld dedicated servers as named instances: several per machine, each with its own config, saves and port (`gsm create`, `list`, `game list|show`).
+- Server lifecycle without a daemon: `start`, `stop`, `restart`, `run` (foreground), `status [--json]`, `logs [-f]`, and `update` through steamcmd. Servers are found by PID, start time and instance, and stopped as a whole process group, with a force stop as the fallback.
 - Config history in a git repo per instance; `start` commits uncommitted edits (`config diff|log|commit`).
-- Deduplicated, compressed save snapshots, taken automatically on stop, before update and before restore (`save snapshot|list|restore`). Restore is verified and non-destructive.
+- Deduplicated, compressed save snapshots, taken automatically on stop, before update and before restore (`save snapshot|list|restore`). Restore is verified and non-destructive, and every write to the store is crash-safe.
 - The playit.gg tunnel as an addon (`addon add|remove`).
 - `gsm doctor` checks the machine; `gsm version` prints the version, commit and Go version.
 - Release binaries for Linux, Windows and macOS on amd64 and arm64, with SHA-256 checksums.
+- Documentation: a user guide, architecture and design docs, a development guide, and contributing, security and conduct policies. MIT license.
 
-### Fixed
-
-- An empty or corrupt store lock left by a crash no longer blocks every snapshot ([#22](https://github.com/chopsticks-user/gsm/issues/22)).
-- Stop falls back to a force stop when the stop request can't be sent ([#23](https://github.com/chopsticks-user/gsm/issues/23)).
-- `game show` no longer lists `port` as a `--set` setting ([#24](https://github.com/chopsticks-user/gsm/issues/24)).
-- Copies of the seeded config and `steamclient.so` are written atomically ([#25](https://github.com/chopsticks-user/gsm/issues/25)).
-
-[Unreleased]: https://github.com/chopsticks-user/gsm/commits/main
+[Unreleased]: https://github.com/chopsticks-user/gsm/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/chopsticks-user/gsm/releases/tag/v0.1.0
