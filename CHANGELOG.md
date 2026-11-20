@@ -4,6 +4,10 @@ All notable changes to gsm are listed here. The format follows [Keep a Changelog
 
 ## [Unreleased]
 
+### Added
+
+- Games whose server keeps its config in one file in the install: gsm links it to `config/<file>` and, for a JSON file with a port key, sets only that key to the instance's port before each start. On Windows this needs file symlinks (Developer Mode or admin).
+
 ## [0.1.0] - 2026-11-19
 
 The first release: Palworld dedicated servers on Linux and Windows.

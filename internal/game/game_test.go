@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestRenderArgs(t *testing.T) {
@@ -73,22 +74,37 @@ func validate(g Game) error {
 	if len(g.Launch) == 0 {
 		return errors.New("no platform")
 	}
+	keys := g.Placeholders()
 	for _, goos := range g.Platforms() {
 		l := g.Launch[goos]
 		if !slices.Contains(platforms, goos) {
 			return fmt.Errorf("unknown platform %q", goos)
 		}
-		for _, p := range [][2]string{{"command", l.Command}, {"config dir", l.ConfigDir}, {"saves dir", l.SavesDir}} {
+		if (l.ConfigDir == "") == (l.ConfigFile == "") {
+			return fmt.Errorf("%s needs a config dir or a config file, not both", goos)
+		}
+		config, what := l.ConfigDir, "config dir"
+		if l.ConfigFile != "" {
+			config, what = l.ConfigFile, "config file"
+		}
+		for _, p := range [][2]string{{"command", l.Command}, {what, config}, {"saves dir", l.SavesDir}} {
 			if err := relPath(goos+" "+p[0], p[1]); err != nil {
 				return err
 			}
 		}
 		// Both are replaced by links to user data, so they must not overlap.
-		if within(l.ConfigDir, l.SavesDir) || within(l.SavesDir, l.ConfigDir) {
-			return fmt.Errorf("%s config dir %q and saves dir %q overlap", goos, l.ConfigDir, l.SavesDir)
+		if within(config, l.SavesDir) || within(l.SavesDir, config) {
+			return fmt.Errorf("%s %s %q and saves dir %q overlap", goos, what, config, l.SavesDir)
 		}
-		if g.DefaultConfig != "" && (within(g.DefaultConfig, l.ConfigDir) || within(g.DefaultConfig, l.SavesDir)) {
-			return fmt.Errorf("default config %q is inside a dir that gets linked to user data", g.DefaultConfig)
+		if g.DefaultConfig != "" && (within(g.DefaultConfig, config) || within(g.DefaultConfig, l.SavesDir)) {
+			return fmt.Errorf("default config %q is inside a path that gets linked to user data", g.DefaultConfig)
+		}
+		if g.ConfigPortKey != "" && l.ConfigFile == "" {
+			return fmt.Errorf("%s has a config port key but no config file", goos)
+		}
+		// Otherwise every instance would get the game's built-in port.
+		if !slices.Contains(keys, "port") && g.ConfigPortKey == "" {
+			return fmt.Errorf("%s: the port reaches the server neither through {port} nor a config port key", goos)
 		}
 	}
 	if g.DefaultConfig != "" {
@@ -111,7 +127,6 @@ func validate(g Game) error {
 			return fmt.Errorf("arg %q has a malformed placeholder", a)
 		}
 	}
-	keys := g.Placeholders()
 	for _, k := range keys {
 		if _, ok := g.Defaults[k]; !ok && k != "port" {
 			return fmt.Errorf("placeholder {%s} has no default", k)
@@ -164,6 +179,12 @@ func TestValidateCatchesMistakes(t *testing.T) {
 		{"stop timeout", func(g *Game) { g.StopTimeout = 0 }},
 		{"must be a relative path", func(g *Game) { g.DefaultConfig = "../x.ini" }},
 		{"linked to user data", func(g *Game) { g.DefaultConfig = "Pal/Saved/Config/LinuxServer/x.ini" }},
+		{"not both", launch("linux", Launch{Command: "x", ConfigDir: "c", ConfigFile: "c.json", SavesDir: "s"})},
+		{"not both", launch("linux", Launch{Command: "x", SavesDir: "s"})},
+		{"must be a relative path", launch("linux", Launch{Command: "x", ConfigFile: "../c.json", SavesDir: "s"})},
+		{"overlap", launch("linux", Launch{Command: "x", ConfigFile: "s/c.json", SavesDir: "s"})},
+		{"no config file", func(g *Game) { g.ConfigPortKey = "queryPort" }},
+		{"neither through {port}", func(g *Game) { g.Args = []string{"-players={players}"} }},
 		{"must be a file name", func(g *Game) { g.DefaultConfigName = "a/b.ini" }},
 		{"must be a file name", func(g *Game) { g.DefaultConfigName = ".." }},
 		{"positive number", func(g *Game) { g.SteamAppID = "-5" }},
@@ -174,5 +195,17 @@ func TestValidateCatchesMistakes(t *testing.T) {
 		if err := validate(g); err == nil || !strings.Contains(err.Error(), c.want) {
 			t.Errorf("want error containing %q, got %v", c.want, err)
 		}
+	}
+}
+
+// A game configured by one JSON file, with the port in it and no args.
+func TestValidateAcceptsConfigFileGame(t *testing.T) {
+	g := Game{
+		Name: "filegame", Title: "File Game", SteamAppID: "1",
+		Launch:        map[string]Launch{"linux": {Command: "srv", ConfigFile: "srv.json", SavesDir: "savegame"}},
+		ConfigPortKey: "queryPort", DefaultPort: 15637, StopTimeout: time.Second,
+	}
+	if err := validate(g); err != nil {
+		t.Fatal(err)
 	}
 }

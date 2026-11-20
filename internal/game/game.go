@@ -16,7 +16,11 @@ import (
 type Launch struct {
 	Command   string
 	ConfigDir string // where the server reads its config
-	SavesDir  string // where the server writes its saves
+	// ConfigFile is a single config file the server reads, for servers that
+	// keep their config in one file instead of a folder. A launch has
+	// ConfigDir or ConfigFile, not both.
+	ConfigFile string
+	SavesDir   string // where the server writes its saves
 }
 
 type Game struct {
@@ -28,6 +32,9 @@ type Game struct {
 	DefaultPort int
 	Defaults    map[string]string // default values for Args placeholders
 	StopTimeout time.Duration
+	// ConfigPortKey is the top-level JSON key in a Launch.ConfigFile that
+	// holds the port; gsm sets it to the instance's port before each start.
+	ConfigPortKey string
 	// DefaultConfig is a file in the install copied into config/ on create,
 	// so users have something to edit. Empty means none.
 	DefaultConfig     string
