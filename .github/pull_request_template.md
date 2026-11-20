@@ -8,7 +8,7 @@ Closes #
 
 ## Verification
 <!-- Each acceptance criterion and edge case of the issue, with the test or check that covers it and its result. -->
-- [ ] `nix develop path:./flake -c scripts/verify.sh` passes
+- [ ] Verify passes (see docs/development.md)
 
 ## Notes
 <!-- Assumptions, follow-ups, risks, anything left out and why; or "None". -->

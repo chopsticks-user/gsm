@@ -140,5 +140,10 @@ Keep docs in step with code, in the same PR:
 | [architecture.md](architecture.md) | how gsm is built: packages, data, formats, algorithms, per-OS behavior |
 | [design.md](design.md) | why: goals, decisions and rejected alternatives, roadmap, limitations, open questions |
 | development.md | this file: dev environment, verify, tests, releasing, workflow |
+| [README.md](../README.md) | what gsm is, install, links into these docs |
+| [CHANGELOG.md](../CHANGELOG.md) | what changed in each release |
+| [CONTRIBUTING.md](../CONTRIBUTING.md) | how to report bugs, propose features and open pull requests (defers to this file) |
+| [SECURITY.md](../SECURITY.md) | supported versions and private vulnerability reporting |
+| [CODE_OF_CONDUCT.md](../CODE_OF_CONDUCT.md) | Contributor Covenant 2.1 and how to report conduct issues |
 
 Each fact lives in one doc; the others link to it.

@@ -1,6 +1,5 @@
 name: Feature or question
 description: Propose a feature, ask for a game, or ask a question
-labels: ["type:feature"]
 body:
   - type: textarea
     id: problem

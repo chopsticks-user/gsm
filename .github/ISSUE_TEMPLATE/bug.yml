@@ -23,6 +23,17 @@ body:
         - NixOS
         - Windows
         - macOS
+        - Other (say which under Actual)
+    validations:
+      required: true
+  - type: dropdown
+    id: arch
+    attributes:
+      label: CPU
+      options:
+        - x86-64 (amd64)
+        - ARM64
+        - Other
     validations:
       required: true
   - type: input
