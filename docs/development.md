@@ -72,6 +72,8 @@ CI then runs `govulncheck -test ./...` for Linux, Windows and macOS, which fails
 
 Dependabot (`.github/dependabot.yml`) opens weekly pull requests for Go module and GitHub Actions updates, one grouped PR per ecosystem, which CI checks like any other.
 
+GitHub also checks the repo on its own, outside the workflows: Dependabot alerts and security-fix pull requests for vulnerable dependencies, secret scanning with push protection (a push containing a token or key is rejected), and CodeQL code scanning of the Go code and the workflows. Findings show under the repo's Security tab; vulnerabilities reported privately ([SECURITY.md](../SECURITY.md)) land there too.
+
 Two things nothing updates automatically, and both have the same fix:
 
 - **A vulnerability in Go's standard library.** govulncheck checks the standard library of the Go the flake provides, so a stdlib advisory fails CI on every PR, even ones that touch no Go code, until a newer Go is in the flake.
@@ -144,6 +146,12 @@ Every change that will be committed goes through a GitHub issue and a pull reque
 4. **Pull request** against `main`, with the body: `Closes #<n>` lines, then Why, Changes, Verification and Notes.
 5. **Review** the PR, fix what it finds, and record the findings in a PR comment.
 6. **Merge** with a merge commit after approval, deleting the branch.
+
+GitHub enforces the parts that matter:
+
+- **`main` and `release-*`** can only change through a pull request whose `verify (Linux)` check passes, and can't be deleted or force-pushed. Merges are merge commits only (squash and rebase are off), and merged branches are deleted automatically. Admins can override a failing check when merging a pull request, but can't push to these branches directly.
+- **Release tags (`v*`)** can only be created by admins, and nobody can move or delete one, since pushing a tag publishes a release.
+- **Pull requests from outside contributors** run CI only after a maintainer approves the run.
 
 ### Labels
 
