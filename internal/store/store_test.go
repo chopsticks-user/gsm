@@ -1,6 +1,8 @@
 package store
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -193,5 +195,41 @@ func TestLockIsPublishedCompleteAndCleansUp(t *testing.T) {
 		if strings.HasPrefix(e.Name(), "lock") {
 			t.Errorf("%s left in the store after unlock", e.Name())
 		}
+	}
+}
+
+// A server can rewrite a save after the walk saw it and before it is hashed.
+// The record must still describe one version of the file: its size and hash
+// must match, on both the new-object and the existing-object path.
+func TestSnapshotOfFileRewrittenBeforeHashIsConsistent(t *testing.T) {
+	for _, existing := range []bool{false, true} {
+		t.Run(map[bool]string{false: "new object", true: "existing object"}[existing], func(t *testing.T) {
+			s, saves := setup(t)
+			save := filepath.Join(saves, "Level.sav")
+			newer := "a longer, newer save"
+			if existing { // store the newer content once, so the second snapshot dedups it
+				write(t, save, newer)
+				if _, err := s.Snapshot(saves, Record{Instance: "main"}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			write(t, save, "old")
+			orig := beforeHash
+			beforeHash = func(p string) {
+				if p == save {
+					write(t, save, newer)
+				}
+			}
+			t.Cleanup(func() { beforeHash = orig })
+			rec, err := s.Snapshot(saves, Record{Instance: "main"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			sum := sha256.Sum256([]byte(newer))
+			f := rec.Files[0]
+			if f.Hash != hex.EncodeToString(sum[:]) || f.Size != int64(len(newer)) {
+				t.Fatalf("record has size %d and hash %s..., want size %d with the hash of the same bytes", f.Size, f.Hash[:8], len(newer))
+			}
+		})
 	}
 }

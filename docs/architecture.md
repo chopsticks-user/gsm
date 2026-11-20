@@ -290,7 +290,7 @@ If the server exits on its own, `run` stops the addons, clears the state and tak
 1. **Warn if running** and the game has no save-flush method: a running server may be mid-write or hold progress in memory.
 2. **Take the store lock.**
 3. **Walk `saves/`.** For each regular file:
-   1. hash it with SHA-256
+   1. hash it with SHA-256, counting the bytes: the recorded size comes from this same read, so size and hash always describe one version of the file, even if the server rewrites it during the walk
    2. if `objects/<first 2 hex>/<hash>` exists, the content is already stored (by any snapshot of any instance)
    3. otherwise stream it through zstd into a temp file in the same folder, **hashing it a second time while compressing**. Different hashes mean the server changed the file in between, so gsm fails with `changed while it was being saved; try again` rather than store content under the wrong name.
    4. `fsync` the temp file and rename it into place
