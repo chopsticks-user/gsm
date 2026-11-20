@@ -84,7 +84,7 @@ Repeats the lifecycle against the real Palworld dedicated server: it downloads i
 
 ### CI
 
-`.github/workflows/ci.yml` runs verify through the flake on `ubuntu-latest` for every pull request and every push to `main`, the same command as locally. Linux only for now; Windows and macOS runners are [#15](https://github.com/chopsticks-user/gsm/issues/15).
+`.github/workflows/ci.yml` runs verify through the flake on `ubuntu-latest` for every pull request and every push to `main`, the same command as locally. The `test` job then runs `go test ./...` on `windows-latest` and `macos-latest` with the Go from `go.mod` (`actions/setup-go`), since the flake doesn't run on Windows. The race detector and the end-to-end test stay Linux-only: the e2e test needs a POSIX shell, and on macOS Palworld has no server. Tests that need Unix signals live in `*_unix_test.go`; a fake server that must survive a stop request catches the signal and drops it, since `signal.Ignore` on Windows lets Ctrl+Break end the process.
 
 CI then runs `govulncheck -test ./...` for Linux, Windows and macOS, which fails on a known vulnerability in code gsm actually calls, tests included (one in a dependency function gsm never calls is reported but doesn't fail). It needs the network for the vulnerability database, so it's a CI step rather than part of verify. CI also runs weekly on a schedule, so a vulnerability published against unchanged code shows up without a pull request. Run it locally with `nix develop path:./flake -c govulncheck -test ./...`.
 
