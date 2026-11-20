@@ -50,3 +50,11 @@ To build from source, see [docs/development.md](docs/development.md).
 - [Design](docs/design.md): why it works that way, the roadmap and known limitations
 - [Development](docs/development.md): building, testing and releasing
 - [Changelog](CHANGELOG.md)
+
+## Contributing
+
+Bug reports, ideas and pull requests are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md). Everyone taking part follows the [Code of Conduct](CODE_OF_CONDUCT.md). To report a security problem, see [SECURITY.md](SECURITY.md).
+
+## License
+
+gsm is released under the [MIT License](LICENSE).
