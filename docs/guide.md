@@ -6,17 +6,24 @@ gsm currently supports Palworld on Linux and Windows. It implements `doctor`, `g
 
 ## Step 0: Get gsm
 
-gsm is one static binary with no runtime to install. To build it from source you need Go (or Nix, see [development.md](development.md)):
+gsm is one static binary with no runtime to install.
+
+**From a release.** Download the binary for your OS and CPU from the [releases page](https://github.com/chopsticks-user/gsm/releases), along with `SHA256SUMS`, check it and put it on your `PATH`. On Linux x86-64:
 
 ```
-go build ./cmd/gsm
+$ sha256sum --ignore-missing -c SHA256SUMS
+gsm-linux-amd64: OK
+$ install -m 755 gsm-linux-amd64 ~/.local/bin/gsm
+$ gsm version
+gsm v0.1.0 (commit 1a2b3c4d5e6f, go1.27.3)
 ```
 
-Cross-compiling needs no extra toolchain:
+The files are `gsm-<os>-<arch>`, for `linux`, `windows` (`.exe`) and `darwin`, each on `amd64` and `arm64`. On macOS, use `shasum -a 256 -c SHA256SUMS` instead of `sha256sum`.
+
+**From source.** With Go (or Nix, see [development.md](development.md)):
 
 ```
-GOOS=windows GOARCH=amd64 go build ./cmd/gsm     # gsm.exe
-GOOS=darwin  GOARCH=arm64 go build ./cmd/gsm     # Apple Silicon
+go build -o build/ ./cmd/gsm     # build/gsm
 ```
 
 **Where gsm keeps its data.** Everything lives under one folder, `$GSM_HOME`. The first match wins:
@@ -248,6 +255,7 @@ gsm update <name>
 gsm config diff|log|commit <name> [-m msg]
 gsm save snapshot <name> [-m msg] | list <name> | restore <name> <id>
 gsm addon add|remove <name> <addon>
+gsm version | --version
 ```
 
 Rules worth knowing:
