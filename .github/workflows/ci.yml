@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Weekly, so a vulnerability published against unchanged code still shows up.
+  schedule:
+    - cron: '17 6 * * 1'
 
 permissions:
   contents: read
@@ -25,7 +28,12 @@ jobs:
       # Linux/Windows/macOS, and the race tests, end-to-end test included.
       - name: Verify
         run: nix develop path:./flake -c scripts/verify.sh
-      # Fails on known vulnerabilities in code gsm actually calls. Separate from
-      # verify because it needs the network for the vulnerability database.
+      # Fails on known vulnerabilities in code gsm actually calls, tests
+      # included, for every OS it ships for (per-OS files differ). Separate
+      # from verify because it needs the network for the vulnerability database.
       - name: Vulnerabilities
-        run: nix develop path:./flake -c govulncheck ./...
+        run: |
+          for target in linux/amd64 windows/amd64 darwin/arm64; do
+            echo "== $target"
+            GOOS=${target%/*} GOARCH=${target#*/} nix develop path:./flake -c govulncheck -test ./...
+          done

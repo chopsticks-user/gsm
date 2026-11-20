@@ -37,6 +37,8 @@ Go is not installed globally; use the flake's dev shell (details in `docs/develo
 - Test: `nix develop path:./flake -c go test -race ./...`
 - Verify (scripts syntax, gofmt, go vet for Linux/Windows/macOS, race tests including the end-to-end test; CI runs the same): `nix develop path:./flake -c scripts/verify.sh`
 - Smoke test against the real Palworld server (5 GB download, run before a release): `nix develop path:./flake -c scripts/smoke-palworld.sh`
+- Vulnerability scan (CI runs it for Linux, Windows and macOS; needs the network): `nix develop path:./flake -c govulncheck -test ./...`
+- A stdlib vulnerability or a Dependabot `go` bump that fails CI is fixed by `nix flake update --flake path:./flake` (Dependabot doesn't update `flake/flake.lock`)
 
 `git`, `steamcmd`, `steam-run` and `podman` are on the dev host.
 
