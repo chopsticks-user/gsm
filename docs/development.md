@@ -83,7 +83,7 @@ To cut a release:
 
 1. Make sure every issue in the version's [milestone](https://github.com/chopsticks-user/gsm/milestones) is closed and CI is green on `main`.
 2. Run the smoke test with a game client: `nix develop path:./flake -c scripts/smoke-palworld.sh --hold`, and connect to the server on UDP 8211 while it holds.
-3. In `CHANGELOG.md`, rename `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD`, start a new empty `## [Unreleased]` above it, update the links at the bottom, and merge that through a pull request.
+3. In `CHANGELOG.md`, rename `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD`, start a new empty `## [Unreleased]` above it, update the links at the bottom, and merge that through a pull request. A pre-release (`vX.Y.Z-rc.N`) can skip this: without a section of its own, its notes come from `[Unreleased]`.
 4. Tag the merge commit on `main` and push the tag:
    ```
    git tag -a vX.Y.Z -m "gsm vX.Y.Z"
@@ -92,7 +92,7 @@ To cut a release:
 5. `.github/workflows/release.yml` then verifies the tagged commit, builds the binaries (`scripts/release-build.sh`), takes the notes from the version's CHANGELOG section (`scripts/release-notes.sh`, which fails if the section is missing) and publishes the GitHub release with every binary and `SHA256SUMS`. A tag with a `-` suffix becomes a pre-release. The release is created only after everything is built, and never overwrites an existing one.
 6. Check the release page, download one binary, verify it against `SHA256SUMS`, and run `gsm version`.
 
-If the workflow fails before publishing, fix the problem on `main`, delete the tag (`git push --delete origin vX.Y.Z`, `git tag -d vX.Y.Z`) and tag again.
+If the workflow fails, fix the problem on `main`, delete any release it left behind (`gh release delete vX.Y.Z`, in case an asset upload failed after the release was created), delete the tag (`git push --delete origin vX.Y.Z`, `git tag -d vX.Y.Z`), and tag again. The workflow also refuses a tag that isn't on `main`.
 
 To try a release build locally: `nix develop path:./flake -c scripts/release-build.sh v0.0.0-test`.
 

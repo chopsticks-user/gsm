@@ -32,6 +32,7 @@ cmd/gsm/            the CLI: dispatch and flag parsing (main.go), one file per c
   cmd_instance.go     doctor, game, create, list
   cmd_server.go       start, stop, restart, run, status, logs, update
   cmd_data.go         config, save and addon commands
+  version.go          version (handled in main.go before the data dir is resolved)
 internal/home       where $GSM_HOME is
 internal/game       built-in game definitions (Go values), args templates
 internal/instance   instance.toml, name rules, port assignment, instance paths

@@ -15,3 +15,15 @@ func TestVersionString(t *testing.T) {
 		t.Fatalf("versionString() = %q", got)
 	}
 }
+
+// version must work before (and without) a resolvable data dir.
+func TestVersionNeedsNoHome(t *testing.T) {
+	for _, k := range []string{"HOME", "GSM_HOME", "XDG_DATA_HOME", "LOCALAPPDATA"} {
+		t.Setenv(k, "")
+	}
+	for _, args := range [][]string{{"version"}, {"--version"}} {
+		if err := run(args); err != nil {
+			t.Fatalf("gsm %v: %v", args, err)
+		}
+	}
+}

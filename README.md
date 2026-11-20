@@ -35,7 +35,7 @@ Download the binary for your OS and CPU from the [releases page](https://github.
 
 ```
 sha256sum --ignore-missing -c SHA256SUMS
-install -m 755 gsm-linux-amd64 ~/.local/bin/gsm
+install -D -m 755 gsm-linux-amd64 ~/.local/bin/gsm
 gsm version
 ```
 
