@@ -35,7 +35,8 @@ Go is not installed globally; use the flake's dev shell (details in `docs/develo
 
 - Build: `nix develop path:./flake -c go build ./cmd/gsm`
 - Test: `nix develop path:./flake -c go test -race ./...`
-- Verify (scripts syntax, gofmt, go vet for Linux/Windows/macOS, race tests): `nix develop path:./flake -c scripts/verify.sh`
+- Verify (scripts syntax, gofmt, go vet for Linux/Windows/macOS, race tests including the end-to-end test; CI runs the same): `nix develop path:./flake -c scripts/verify.sh`
+- Smoke test against the real Palworld server (5 GB download, run before a release): `nix develop path:./flake -c scripts/smoke-palworld.sh`
 
 `git`, `steamcmd`, `steam-run` and `podman` are on the dev host.
 

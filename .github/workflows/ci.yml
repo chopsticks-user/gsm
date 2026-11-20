@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: verify (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: cachix/install-nix-action@v31
+      # The same command as locally: scripts syntax, gofmt, go vet for
+      # Linux/Windows/macOS, and the race tests, end-to-end test included.
+      - name: Verify
+        run: nix develop path:./flake -c scripts/verify.sh

@@ -37,7 +37,7 @@ One command runs everything a change must pass:
 nix develop path:./flake -c scripts/verify.sh
 ```
 
-It syntax-checks the shell scripts in `scripts/`, checks `gofmt` on every package, runs `go vet` for Linux, Windows and macOS, and runs `go test -race ./...`. Run it before and after a change, and before merging.
+It syntax-checks the shell scripts in `scripts/`, checks `gofmt` on every package, runs `go vet` for Linux, Windows and macOS, and runs `go test -race ./...`, which includes the end-to-end test. CI runs the same command. Run it before and after a change, and before merging.
 
 ## Tests
 
@@ -46,9 +46,25 @@ It syntax-checks the shell scripts in `scripts/`, checks `gofmt` on every packag
 - **OS branches as parameters.** Code like `$GSM_HOME` resolution takes the OS name and environment as arguments, so one machine can test every branch.
 - **Per-OS tests** go in `*_unix_test.go` or `*_windows_test.go`, next to the code.
 
-A run of the CLI with a fake steamcmd and a fake `PalServer.sh` that spawns a child and rewrites a save every second found two bugs unit tests missed: the early-exiting `steam-run` wrapper, and `steam-run` hiding `/tmp`. Behavior that spans processes deserves an end-to-end test.
+### End-to-end test
+
+`cmd/gsm/e2e_test.go` drives the real CLI through a whole lifecycle: create (with a port conflict), start, `status --json`, `config diff`, restart with its auto-commit, a live snapshot, stop, restore over a corrupted save, update to a new build, and `addon add|remove`. No network, Steam or game is involved. The test binary plays every part, chosen by `GSM_E2E_ROLE`: gsm itself, a fake steamcmd that lays out a Palworld-shaped install, and a fake server (started through a `PalServer.sh` that runs it as a child, like the real one) that rewrites a save every 100 ms and writes a final save on SIGTERM. Shell shims named `steamcmd`, `steam-run` and `podman` come first on `PATH`, so gsm runs as in production; `podman` always fails, so no container is ever started. The test sets its own `HOME`, puts its data outside `/tmp` on NixOS, and stops every server it started, even when it fails. It needs a POSIX shell, so it builds only on Unix.
+
+An earlier end-to-end run like this found two bugs unit tests had missed: the early-exiting `steam-run` wrapper, and `steam-run` hiding `/tmp`. Behavior that spans processes deserves a step in this test.
 
 On NixOS, keep test data out of `/tmp` when a test starts a server through `steam-run`, which hides `/tmp` from the server.
+
+### Smoke test against the real server
+
+```
+nix develop path:./flake -c scripts/smoke-palworld.sh [--hold]
+```
+
+Repeats the lifecycle against the real Palworld dedicated server: it downloads it (about 5 GB) into a throwaway home under `~/.cache`, waits for the server to listen and save, snapshots, stops, restores over a corrupted `Level.sav` and checks the hash, starts again, and updates. The throwaway home is deleted at the end, also on failure. `--hold` pauses while the server runs, so you can connect with a game client. It needs steamcmd (plus `steam-run` and `steamclient.so` on NixOS) and a free UDP port 8211, so it doesn't run in CI; run it before a release.
+
+### CI
+
+`.github/workflows/ci.yml` runs verify through the flake on `ubuntu-latest` for every pull request and every push to `main`, the same command as locally. Linux only for now; Windows and macOS runners are [#15](https://github.com/chopsticks-user/gsm/issues/15).
 
 ## Adding a game
 
