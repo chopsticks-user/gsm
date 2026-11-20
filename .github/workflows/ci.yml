@@ -37,3 +37,22 @@ jobs:
             echo "== $target"
             GOOS=${target%/*} GOARCH=${target#*/} nix develop path:./flake -c govulncheck -test ./...
           done
+
+  # The Nix flake doesn't run on Windows, so these use the Go toolchain from
+  # go.mod directly. The race detector and the end-to-end test (unix only)
+  # already run in the Linux job.
+  test:
+    name: test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: Test
+        run: go test ./...
