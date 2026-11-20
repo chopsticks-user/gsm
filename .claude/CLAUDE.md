@@ -123,3 +123,8 @@ Go is not installed globally. `flake/flake.nix` provides a dev shell with Go, go
 - GitHub: `chopsticks-user/gsm` (private). Base branch is `main`.
 - Labels in use: `bug`, `enhancement`, `documentation`.
 - Docs: `docs/how-it-works.md` is the walkthrough and technical reference; `docs/tasks.md` tracks what is built and what is left.
+
+## taskie
+
+verify: nix develop path:./flake -c scripts/verify.sh
+setup: none
