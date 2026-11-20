@@ -210,7 +210,7 @@ The "both have files" case is deliberate: gsm never guesses which copy of a worl
 1. **Already running?** (the check below) Print `already running` and move on, so `start --all` is safe to repeat.
 2. **Check the platform:** a game without a launch entry for this OS fails with `<game> has no server for <os>`.
 3. **Commit the config** (`auto: before start`).
-4. **NixOS preparation:** refuse a `$GSM_HOME` under `/tmp`, because `steam-run` gives the server a fresh, empty `/tmp`; copy `steamclient.so` into `~/.steam/sdk64/`. That folder is often a symlink to the folder the file comes from, and opening the destination for writing would then truncate the source, so `CopyFile` compares device and inode first and skips a copy onto itself.
+4. **NixOS preparation:** refuse a `$GSM_HOME` under `/tmp`, because `steam-run` gives the server a fresh, empty `/tmp`; copy `steamclient.so` into `~/.steam/sdk64/`. That folder is often a symlink to the folder the file comes from, so `CopyFile` compares device and inode first and skips a copy onto itself rather than replacing Steam's own file with a copy of itself.
 5. **Re-check the links** with `LinkTo`.
 6. **Find the launcher** in `server/`. If it is missing (a deleted or failed install), fail with `server not installed (...); run: gsm update <name>`. The config commit from step 3 stays.
 7. **Build the command line** from the args template. On NixOS it is prefixed with `steam-run`. The working directory is `server/`.
@@ -341,7 +341,7 @@ podman run -d --rm --name gsm-<instance>-playit --network=host \
 
 ## Atomic writes
 
-`WriteAtomic` (for `state.json`, `instance.toml`, `.gitignore` and snapshot records) and the object writer follow one pattern:
+`WriteAtomic` (for `state.json`, `instance.toml`, `.gitignore` and snapshot records), `CopyFile` (the seeded config, `steamclient.so`) and the object writer follow one pattern:
 
 1. create a temp file in the same folder as the destination, so the rename stays on one filesystem
 2. write, then `fsync`
@@ -351,7 +351,7 @@ podman run -d --rm --name gsm-<instance>-playit --network=host \
 
 Readers see the complete old file or the complete new one. The containing folder isn't `fsync`ed after the rename, so a power cut might lose the rename itself (the old file remains): the latest snapshot record could be lost, never corrupted.
 
-Other writes are not atomic, on purpose or not yet: `logs/server.log` is appended; restore staging files are verified by hash before the swap; and `CopyFile` (the seeded config, `steamclient.so`) truncates and writes in place ([#25](https://github.com/chopsticks-user/gsm/issues/25)).
+Other writes are not atomic, on purpose: `logs/server.log` is appended, and restore staging files are verified by hash before the swap.
 
 ## Crash safety summary
 

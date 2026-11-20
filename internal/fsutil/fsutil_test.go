@@ -1,9 +1,14 @@
 package fsutil
 
 import (
+	"errors"
+	"io"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
+	"testing/iotest"
 )
 
 func write(t *testing.T, path, data string) {
@@ -116,5 +121,76 @@ func TestWriteAtomic(t *testing.T) {
 	entries, _ := os.ReadDir(filepath.Dir(p))
 	if len(entries) != 1 {
 		t.Fatalf("temp files left behind: %v", entries)
+	}
+}
+
+// A copy that fails partway (here: the source is a directory, so reading it
+// fails after the destination was opened) must leave the old destination
+// intact and no temp file behind.
+func TestCopyFileFailureKeepsOldDestination(t *testing.T) {
+	d := t.TempDir()
+	dst := filepath.Join(d, "PalWorldSettings.ini")
+	write(t, dst, "old settings")
+	src := filepath.Join(d, "src")
+	if err := os.Mkdir(src, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := CopyFile(src, dst); err == nil {
+		t.Fatal("copying a directory succeeded")
+	}
+	if got := read(t, dst); got != "old settings" {
+		t.Fatalf("destination = %q after a failed copy, want the old content", got)
+	}
+	entries, _ := os.ReadDir(d)
+	if len(entries) != 2 {
+		t.Fatalf("leftover files after a failed copy: %v", entries)
+	}
+}
+
+// A write that fails after some bytes went out keeps the old file whole.
+func TestWriteAtomicPartialFailureKeepsOldFile(t *testing.T) {
+	d := t.TempDir()
+	p := filepath.Join(d, "PalWorldSettings.ini")
+	write(t, p, "old settings")
+	r := io.MultiReader(strings.NewReader("half of the new"), iotest.ErrReader(errors.New("disk read error")))
+	if err := writeAtomic(p, r, 0o644); err == nil {
+		t.Fatal("write with a failing reader succeeded")
+	}
+	if got := read(t, p); got != "old settings" {
+		t.Fatalf("file = %q after a failed write, want the old content", got)
+	}
+	if entries, _ := os.ReadDir(d); len(entries) != 1 {
+		t.Fatalf("leftover files after a failed write: %v", entries)
+	}
+}
+
+// Copying over an existing read-only destination (an earlier steamclient.so)
+// replaces it with the new content and mode, leaving no temp file.
+func TestCopyFileReplacesReadOnlyDestination(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows can't rename over a read-only file and has no Unix modes")
+	}
+	d := t.TempDir()
+	src := filepath.Join(d, "linux64", "steamclient.so")
+	write(t, src, "new library")
+	if err := os.Chmod(src, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	dst := filepath.Join(d, "sdk64", "steamclient.so")
+	write(t, dst, "old library")
+	if err := os.Chmod(dst, 0o444); err != nil {
+		t.Fatal(err)
+	}
+	if err := CopyFile(src, dst); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(t, dst); got != "new library" {
+		t.Fatalf("destination = %q, want the new content", got)
+	}
+	if fi, err := os.Stat(dst); err != nil || fi.Mode().Perm() != 0o755 {
+		t.Fatalf("destination mode = %v (err %v), want 0755", fi.Mode().Perm(), err)
+	}
+	if entries, _ := os.ReadDir(filepath.Dir(dst)); len(entries) != 1 {
+		t.Fatalf("leftover files after a copy: %v", entries)
 	}
 }
