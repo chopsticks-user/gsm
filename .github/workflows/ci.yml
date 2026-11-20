@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: cachix/install-nix-action@v31
       # The same command as locally: scripts syntax, gofmt, go vet for
       # Linux/Windows/macOS, and the race tests, end-to-end test included.
