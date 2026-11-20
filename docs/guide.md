@@ -120,7 +120,7 @@ diff --git a/config/PalWorldSettings.ini b/config/PalWorldSettings.ini
 
 Commit with a message (`gsm config commit main -m "rename server"`) or don't bother: `start` commits for you, so every run maps to an exact config revision. `gsm config log main` shows the history.
 
-Palworld currently empties `PalWorldSettings.ini` the first time the server starts ([#20](https://github.com/chopsticks-user/gsm/issues/20)). Until that's fixed, start and stop the server once before editing, then copy `server/DefaultPalWorldSettings.ini` over `config/PalWorldSettings.ini` and edit that. Palworld also writes about 40 near-empty engine `.ini` files into `config/` on first boot; they get committed with the next start and are harmless.
+Edit `PalWorldSettings.ini` any time, including right after `create`: your changes survive the first start. Palworld writes back only the settings that differ from the defaults, so a file nobody edited is empty after the first start (the full file is still in the `create` commit). To edit it then, copy `server/DefaultPalWorldSettings.ini` over `config/PalWorldSettings.ini` first. Palworld also writes about 40 near-empty engine `.ini` files into `config/` on first boot; they get committed with the next start and are harmless.
 
 ## Step 5: Start the server
 

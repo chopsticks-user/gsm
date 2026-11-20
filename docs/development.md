@@ -62,7 +62,7 @@ On NixOS, keep test data out of `/tmp` when a test starts a server through `stea
 nix develop path:./flake -c scripts/smoke-palworld.sh [--hold]
 ```
 
-Repeats the lifecycle against the real Palworld dedicated server: it downloads it (about 5 GB) into a throwaway home under `~/.cache`, waits for the server to listen and save, snapshots, stops, restores over a corrupted `Level.sav` and checks the hash, starts again, and updates. The throwaway home is deleted at the end, also on failure. `--hold` pauses while the server runs, so you can connect with a game client. It needs steamcmd (plus `steam-run` and `steamclient.so` on NixOS) and a free UDP port 8211, so it doesn't run in CI; run it before a release.
+Repeats the lifecycle against the real Palworld dedicated server: it downloads it (about 5 GB) into a throwaway home under `~/.cache`, edits `ServerName` in the seeded settings, waits for the server to listen and save, checks the edit survived, snapshots, stops, restores over a corrupted `Level.sav` and checks the hash, starts again, and updates. The throwaway home is deleted at the end, also on failure. `--hold` pauses while the server runs, so you can connect with a game client. It needs steamcmd (plus `steam-run` and `steamclient.so` on NixOS) and a free UDP port 8211, so it doesn't run in CI; run it before a release.
 
 ### CI
 

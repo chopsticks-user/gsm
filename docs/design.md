@@ -91,7 +91,6 @@ Planned features follow the same design but aren't built yet. Each has a backlog
 
 - **No save flush:** a snapshot of a running server may miss recent progress. Snapshots taken on `stop` are consistent.
 - **Graceful shutdown:** it's unverified whether Palworld saves on SIGTERM. If it doesn't, up to the last autosave interval of progress can be lost on stop.
-- **Seeded Palworld settings:** Palworld empties the seeded `PalWorldSettings.ini` on first start ([#20](https://github.com/chopsticks-user/gsm/issues/20)).
 - **Port checks:** port assignment checks only other gsm instances, not other programs. Palworld's optional REST API defaults to port 8212, the same port a second instance gets by default.
 - **Secrets in git:** `AdminPassword` lives in `PalWorldSettings.ini`, which the local config repo tracks. That must be solved before remotes exist.
 - **Snapshot growth:** nothing prunes snapshots yet, and Palworld keeps its own world backups inside `saves/`, which gsm snapshots too.
