@@ -3,6 +3,7 @@
 package fsutil
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -67,23 +68,20 @@ func sameDir(a, b string) bool {
 // WriteAtomic writes data to path through a temp file and a rename, so a
 // crash leaves either the old file or the new one, never half of one.
 func WriteAtomic(path string, data []byte, perm fs.FileMode) error {
-	return writeAtomicFrom(path, perm, func(w io.Writer) error {
-		_, err := w.Write(data)
-		return err
-	})
+	return writeAtomic(path, bytes.NewReader(data), perm)
 }
 
-// writeAtomicFrom writes path through a temp file in the same directory,
-// filled by fill, then renames it into place, so readers see the old file
-// or the complete new one.
-func writeAtomicFrom(path string, perm fs.FileMode, fill func(io.Writer) error) error {
+// writeAtomic copies r to path through a temp file in the same directory,
+// then renames it into place, so readers see the old file or the complete
+// new one.
+func writeAtomic(path string, r io.Reader, perm fs.FileMode) error {
 	f, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".tmp*")
 	if err != nil {
 		return err
 	}
 	tmp := f.Name()
 	defer os.Remove(tmp) // no-op after a successful rename
-	if err := fill(f); err != nil {
+	if _, err := io.Copy(f, r); err != nil {
 		f.Close()
 		return err
 	}
@@ -118,10 +116,7 @@ func CopyFile(src, dst string) error {
 		return err
 	}
 	defer in.Close()
-	return writeAtomicFrom(dst, si.Mode().Perm(), func(w io.Writer) error {
-		_, err := io.Copy(w, in)
-		return err
-	})
+	return writeAtomic(dst, in, si.Mode().Perm())
 }
 
 // IsEmptyDir reports whether dir has no entries. A missing dir counts as empty.

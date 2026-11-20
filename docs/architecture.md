@@ -210,7 +210,7 @@ The "both have files" case is deliberate: gsm never guesses which copy of a worl
 1. **Already running?** (the check below) Print `already running` and move on, so `start --all` is safe to repeat.
 2. **Check the platform:** a game without a launch entry for this OS fails with `<game> has no server for <os>`.
 3. **Commit the config** (`auto: before start`).
-4. **NixOS preparation:** refuse a `$GSM_HOME` under `/tmp`, because `steam-run` gives the server a fresh, empty `/tmp`; copy `steamclient.so` into `~/.steam/sdk64/`. That folder is often a symlink to the folder the file comes from, and opening the destination for writing would then truncate the source, so `CopyFile` compares device and inode first and skips a copy onto itself.
+4. **NixOS preparation:** refuse a `$GSM_HOME` under `/tmp`, because `steam-run` gives the server a fresh, empty `/tmp`; copy `steamclient.so` into `~/.steam/sdk64/`. That folder is often a symlink to the folder the file comes from, so `CopyFile` compares device and inode first and skips a copy onto itself rather than replacing Steam's own file with a copy of itself.
 5. **Re-check the links** with `LinkTo`.
 6. **Find the launcher** in `server/`. If it is missing (a deleted or failed install), fail with `server not installed (...); run: gsm update <name>`. The config commit from step 3 stays.
 7. **Build the command line** from the args template. On NixOS it is prefixed with `steam-run`. The working directory is `server/`.
