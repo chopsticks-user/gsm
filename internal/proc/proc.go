@@ -70,7 +70,9 @@ func Launch(c *exec.Cmd, stateFile, instance string) (State, error) {
 	st := State{PID: c.Process.Pid, Start: t, Instance: instance}
 	b, _ := json.Marshal(st)
 	if err := fsutil.WriteAtomic(stateFile, b, 0o644); err != nil {
-		Stop(st, syscall.SIGTERM, 5*time.Second) // don't leave a server gsm can't find
+		// Don't leave a server gsm can't find. SIGTERM, not the game's signal: the
+		// server has only just started, and a kill follows anyway.
+		Stop(st, syscall.SIGTERM, 5*time.Second)
 		return State{}, err
 	}
 	return st, nil

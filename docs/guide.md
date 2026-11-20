@@ -48,7 +48,7 @@ ok       steam-run (/home/you/.nix-profile/bin/steam-run)
 ok       steamclient.so (/home/you/.local/share/Steam/linux64/steamclient.so)
 ```
 
-`doctor` checks for `git` and `steamcmd`. On NixOS it also checks for `steam-run` and `steamclient.so`, which Steam servers need there. Once an instance uses an addon, it checks that addon's needs too (podman and `~/.config/playit/env` for playit). It exits non-zero when something is missing.
+`doctor` checks for `git` and `steamcmd`. On NixOS it also checks for `steam-run` and `steamclient.so`, which Steam servers need there. Once an instance uses a game run through Wine, it checks for `wine`; once an instance uses an addon, it checks that addon's needs too (podman and `~/.config/playit/env` for playit). It exits non-zero when something is missing.
 
 ## Step 2: Pick a game
 
@@ -68,7 +68,7 @@ settings:      players (set with --set k=v); port with --port
 stop timeout:  30s
 ```
 
-`settings` lists what an instance can set at `create`. Games are built into gsm ([Games](architecture.md#games)); Palworld ships no macOS server, so `create palworld` refuses on macOS.
+`settings` lists what an instance can set at `create`. Some games show more: `config file` and `port key` for a server configured by one JSON file (gsm sets the port in it), `runs through: Wine` for a Windows-only server on Linux, and `stop signal` when it isn't SIGTERM. Games are built into gsm ([Games](architecture.md#games)); Palworld ships no macOS server, so `create palworld` refuses on macOS.
 
 ## Step 3: Create an instance
 

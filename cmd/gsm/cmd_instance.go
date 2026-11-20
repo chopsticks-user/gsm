@@ -46,7 +46,7 @@ func cmdGame(e env, args []string) error {
 		if g.Launch[runtime.GOOS].Wine {
 			fmt.Println("runs through:  Wine (Windows build)")
 		}
-		if g.StopSignal != 0 {
+		if g.StopSignal != 0 && runtime.GOOS != "windows" { // Windows always gets Ctrl+Break
 			fmt.Printf("stop signal:   %s\n", g.Signal())
 		}
 		if g.ConfigPortKey != "" {
@@ -204,12 +204,6 @@ func linkData(inst instance.Instance, g game.Game) error {
 		file := filepath.Join(inst.ConfigDir(), path.Base(l.ConfigFile))
 		if err := fsutil.LinkFileTo(filepath.Join(inst.ServerDir(), filepath.FromSlash(l.ConfigFile)), file); err != nil {
 			return err
-		}
-		if g.Launch[runtime.GOOS].Wine {
-			fmt.Println("runs through:  Wine (Windows build)")
-		}
-		if g.StopSignal != 0 {
-			fmt.Printf("stop signal:   %s\n", g.Signal())
 		}
 		if g.ConfigPortKey != "" {
 			if err := fsutil.SetJSONNumber(file, g.ConfigPortKey, inst.Port); err != nil {
