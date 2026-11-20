@@ -30,9 +30,8 @@ The `justfile` has recipes for the commands below; inside the dev shell run `jus
 | `just build` | `go build -o build/ ./cmd/gsm` |
 | `just test` | `go test -race ./...` |
 | `just verify` | `scripts/verify.sh` (what CI runs) |
-| `just fmt` | `gofmt -w cmd internal` |
-| `just cross` | builds for Windows and macOS, to check they compile |
-| `just vuln` | `govulncheck -test ./...` |
+| `just fmt` | `go fmt ./...` |
+| `just vuln` | `govulncheck -test ./...` for Linux, Windows and macOS, as CI does |
 | `just smoke [--hold]` | `scripts/smoke-palworld.sh` |
 | `just release-build <version>` | `scripts/release-build.sh` |
 | `just release-notes <version>` | `scripts/release-notes.sh` |
