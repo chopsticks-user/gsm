@@ -86,8 +86,12 @@ func fakeServer() int {
 	}
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGTERM, os.Interrupt)
+	// A watchdog, in case the test dies without its cleanup (a -timeout panic).
+	giveUp := time.After(2 * time.Minute)
 	for n := 0; ; n++ {
 		select {
+		case <-giveUp:
+			return 1
 		case <-stop:
 			os.WriteFile(save, []byte(fmt.Sprintf("final save after %d ticks\n", n)), 0o644)
 			return 0
@@ -108,22 +112,22 @@ func newE2E(t *testing.T) *e2e {
 	if err != nil {
 		t.Fatal(err)
 	}
-	root := t.TempDir()
 	// On NixOS gsm refuses a home under /tmp (steam-run hides /tmp from the
-	// server), and t.TempDir() is there, so use the user's cache dir instead.
+	// server), where temp dirs usually are, so use the user's cache dir there.
+	parent := os.TempDir()
 	if _, err := os.Stat("/etc/NIXOS"); err == nil {
-		cache, err := os.UserCacheDir()
-		if err != nil {
+		if parent, err = os.UserCacheDir(); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.MkdirAll(cache, 0o755); err != nil {
+		if err := os.MkdirAll(parent, 0o755); err != nil {
 			t.Fatal(err)
 		}
-		if root, err = os.MkdirTemp(cache, "gsm-e2e-"); err != nil {
-			t.Fatal(err)
-		}
-		t.Cleanup(func() { os.RemoveAll(root) })
 	}
+	root, err := os.MkdirTemp(parent, "gsm-e2e-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(root) })
 	bin := filepath.Join(root, "bin")
 	fakeHome := filepath.Join(root, "home")
 	shims := map[string]string{
@@ -150,7 +154,10 @@ func newE2E(t *testing.T) *e2e {
 	}
 	e := &e2e{t: t, home: filepath.Join(root, "gsm")}
 	for _, kv := range os.Environ() {
-		if k, _, _ := strings.Cut(kv, "="); k == "PATH" || k == "HOME" || k == "GSM_HOME" || k == "XDG_DATA_HOME" {
+		// GIT_* (set inside git hooks) would point gsm's git calls at this
+		// repo; XDG config could bring in the developer's git config.
+		k, _, _ := strings.Cut(kv, "=")
+		if k == "PATH" || k == "HOME" || k == "GSM_HOME" || strings.HasPrefix(k, "XDG_") || strings.HasPrefix(k, "GIT_") {
 			continue
 		}
 		e.env = append(e.env, kv)
@@ -159,7 +166,11 @@ func newE2E(t *testing.T) *e2e {
 	e.env = append(e.env, "GORACE=atexit_sleep_ms=0")
 	e.env = append(e.env, "GSM_E2E_ROLE=gsm", "HOME="+fakeHome, "PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	// Whatever happens, don't leave fake servers running on the machine.
-	t.Cleanup(func() { e.run(nil, "stop", "--all") })
+	t.Cleanup(func() {
+		if out, err := e.run(nil, "stop", "--all"); err != nil {
+			t.Errorf("cleanup: gsm stop --all: %v\n%s", err, out)
+		}
+	})
 	return e
 }
 
@@ -289,7 +300,19 @@ func TestLifecycleEndToEnd(t *testing.T) {
 	mustContain(t, e.ok("config", "diff", "main"), `+OptionSettings=(ServerName="e2e")`)
 
 	// A snapshot of a running server works, with a warning.
-	mustContain(t, e.ok("save", "snapshot", "main", "-m", "while running"), "no save-flush method", "main: snapshot")
+	// The fake server rewrites its save every 100 ms, so gsm may say "try
+	// again", as it would to a user; retry like one would.
+	var out string
+	for try := 0; ; try++ {
+		var err error
+		if out, err = e.run(nil, "save", "snapshot", "main", "-m", "while running"); err == nil {
+			break
+		}
+		if try == 4 || !strings.Contains(out, "try again") {
+			t.Fatalf("gsm save snapshot: %v\n%s", err, out)
+		}
+	}
+	mustContain(t, out, "no save-flush method", "main: snapshot")
 
 	mustContain(t, e.ok("restart", "main"), "main: stopped", "committed config changes", "main: started")
 	mustContain(t, e.ok("config", "log", "main"), "auto: before start")

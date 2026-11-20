@@ -45,7 +45,7 @@ wait_for() {
 }
 
 listening() { grep -q "Running Palworld dedicated server" "$inst/logs/server.log"; }
-has_save() { [ -n "$(find "$inst/saves" -name Level.sav -print -quit)" ]; }
+has_save() { [ -n "$(find "$inst/saves" -name Level.sav -not -path '*/backup/*' -print -quit)" ]; }
 
 step "build gsm"
 go build -o "$gsm" ./cmd/gsm
@@ -61,7 +61,7 @@ step "start"
 g start smoke
 wait_for 120 "the server to listen" listening
 if command -v ss >/dev/null; then
-  ss -uln | grep -q ':8211 ' || fail "nothing listens on UDP 8211"
+  ss -uln | grep ':8211 ' >/dev/null || fail "nothing listens on UDP 8211"
 fi
 wait_for 300 "the first world save" has_save
 level=$(find "$inst/saves" -name Level.sav -not -path '*/backup/*' -print -quit)
@@ -69,15 +69,16 @@ echo "world save: ${level#"$inst/"}"
 
 if $hold; then
   echo
-  read -r -p "Server is up on UDP 8211. Connect with a game client, then press Enter to continue... " _
+  read -r -p "Server is up on UDP 8211. Connect with a game client, then press Enter to continue... " _ || true
 fi
 
 step "snapshot while running (expect a save-flush warning)"
-g save snapshot smoke -m "smoke: running"
+# The server may rewrite a save mid-snapshot; gsm then says "try again".
+for try in 1 2 3; do g save snapshot smoke -m "smoke: running" && break; [ $try = 3 ] && fail "live snapshot failed 3 times"; sleep 2; done
 
 step "stop"
 g stop smoke
-g status | grep -q 'smoke .* stopped' || fail "status doesn't show smoke stopped"
+g status | grep 'smoke .* stopped' >/dev/null || fail "status doesn't show smoke stopped"
 stop_id=$(g save list smoke | awk '$4 == "stop" {id = $1} END {print id}')
 [ -n "$stop_id" ] || fail "no stop snapshot"
 want=$(sha256sum "$level" | cut -d' ' -f1)
