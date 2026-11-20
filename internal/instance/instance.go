@@ -44,7 +44,10 @@ func (i Instance) SavesDir() string  { return filepath.Join(i.Dir, "saves") }
 func (i Instance) ServerDir() string { return filepath.Join(i.Dir, "server") }
 func (i Instance) LogFile() string   { return filepath.Join(i.Dir, "logs", "server.log") }
 func (i Instance) StateFile() string { return filepath.Join(i.Dir, "state.json") }
-func (i Instance) TOMLPath() string  { return filepath.Join(i.Dir, "instance.toml") }
+
+// WinePrefix holds Windows state for a server run through Wine. Disposable.
+func (i Instance) WinePrefix() string { return filepath.Join(i.Dir, "wine") }
+func (i Instance) TOMLPath() string   { return filepath.Join(i.Dir, "instance.toml") }
 
 // gitignore makes the instance directory a git repo that tracks only
 // config/ and instance.toml. Saves, the install, logs and state stay out.

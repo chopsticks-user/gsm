@@ -6,6 +6,7 @@ All notable changes to gsm are listed here. The format follows [Keep a Changelog
 
 ### Added
 
+- Game servers that ship only for Windows can run on Linux through Wine: gsm installs the Windows build and runs it with `wine` and a Wine prefix per instance. A game can also set the signal that stops its server (for example SIGINT).
 - Games whose server keeps its config in one file in the install: gsm links it to `config/<file>` and, for a JSON file with a port key, sets only that key to the instance's port before each start. On Windows this needs file symlinks (Developer Mode or admin).
 
 ## [0.1.0] - 2026-11-19
@@ -14,6 +15,7 @@ The first release: Palworld dedicated servers on Linux and Windows.
 
 ### Added
 
+- Game servers that ship only for Windows can run on Linux through Wine: gsm installs the Windows build and runs it with `wine` and a Wine prefix per instance. A game can also set the signal that stops its server (for example SIGINT).
 - Palworld dedicated servers as named instances: several per machine, each with its own config, saves and port (`gsm create`, `list`, `game list|show`).
 - Server lifecycle without a daemon: `start`, `stop`, `restart`, `run` (foreground), `status [--json]`, `logs [-f]`, and `update` through steamcmd. Servers are found by PID, start time and instance, and stopped as a whole process group, with a force stop as the fallback.
 - Config history in a git repo per instance; `start` commits uncommitted edits (`config diff|log|commit`).

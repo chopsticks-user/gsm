@@ -23,6 +23,12 @@ func TestMain(m *testing.M) {
 		signal.Notify(c, syscall.SIGTERM, os.Interrupt)
 		<-c
 		os.Exit(0)
+	case "sigint": // like Enshrouded under Wine: SIGTERM is ignored here (Wine dies on it), SIGINT stops it cleanly
+		signal.Ignore(syscall.SIGTERM)
+		c := make(chan os.Signal, 1)
+		signal.Notify(c, os.Interrupt)
+		<-c
+		os.Exit(0)
 	case "stubborn": // ignores the stop signal, so only a kill ends it
 		signal.Ignore(syscall.SIGTERM, os.Interrupt)
 		time.Sleep(time.Hour)
@@ -70,7 +76,7 @@ func TestStartThenRunning(t *testing.T) {
 
 func TestStopObedient(t *testing.T) {
 	st, sf := launch(t, "obedient", "main")
-	killed, _, err := Stop(st, 5*time.Second)
+	killed, _, err := Stop(st, syscall.SIGTERM, 5*time.Second)
 	if err != nil || killed {
 		t.Fatalf("killed=%v err=%v", killed, err)
 	}
@@ -81,7 +87,7 @@ func TestStopObedient(t *testing.T) {
 
 func TestStopStubbornEndsWithKill(t *testing.T) {
 	st, _ := launch(t, "stubborn", "main")
-	killed, _, err := Stop(st, time.Second)
+	killed, _, err := Stop(st, syscall.SIGTERM, time.Second)
 	if err != nil || !killed {
 		t.Fatalf("killed=%v err=%v", killed, err)
 	}
@@ -101,7 +107,7 @@ func TestReusedPIDCountsAsStopped(t *testing.T) {
 func TestStoppingOneInstanceLeavesTheOther(t *testing.T) {
 	a, _ := launch(t, "obedient", "a")
 	b, _ := launch(t, "obedient", "b")
-	if _, _, err := Stop(a, 5*time.Second); err != nil {
+	if _, _, err := Stop(a, syscall.SIGTERM, 5*time.Second); err != nil {
 		t.Fatal(err)
 	}
 	if !Alive(b) {
@@ -111,7 +117,7 @@ func TestStoppingOneInstanceLeavesTheOther(t *testing.T) {
 
 func failTerminate(t *testing.T) {
 	orig := terminateGroup
-	terminateGroup = func(int) error { return errors.New("send Ctrl+Break: attach failed") }
+	terminateGroup = func(int, syscall.Signal) error { return errors.New("send Ctrl+Break: attach failed") }
 	t.Cleanup(func() { terminateGroup = orig })
 }
 
@@ -121,7 +127,7 @@ func failTerminate(t *testing.T) {
 func TestStopForcesWhenRequestFails(t *testing.T) {
 	st, _ := launch(t, "obedient", "main")
 	failTerminate(t)
-	killed, warning, err := Stop(st, time.Second)
+	killed, warning, err := Stop(st, syscall.SIGTERM, time.Second)
 	if err != nil || !killed {
 		t.Fatalf("killed=%v err=%v, want a kill without error", killed, err)
 	}
@@ -141,7 +147,7 @@ func TestStopRequestFailsServerAlreadyGone(t *testing.T) {
 		t.Fatal("fake server didn't die")
 	}
 	failTerminate(t)
-	killed, _, err := Stop(st, time.Second)
+	killed, _, err := Stop(st, syscall.SIGTERM, time.Second)
 	if err != nil || killed {
 		t.Fatalf("killed=%v err=%v, want a clean stop", killed, err)
 	}

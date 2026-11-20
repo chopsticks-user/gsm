@@ -58,6 +58,12 @@ func prepare(i instance.Instance) (*exec.Cmd, string, error) {
 	if !g.Supports(runtime.GOOS) {
 		return nil, "", fmt.Errorf("%s has no server for %s", g.Title, runtime.GOOS)
 	}
+	l := g.Launch[runtime.GOOS]
+	if l.Wine {
+		if _, err := exec.LookPath("wine"); err != nil {
+			return nil, "", fmt.Errorf("wine not found; install Wine to run %s on %s", g.Title, runtime.GOOS)
+		}
+	}
 	// update with validate may have replaced the links; LinkTo is a no-op when
 	// they're fine. Before the commit, so it includes the port gsm sets.
 	if err := linkData(i, g); err != nil {
@@ -72,7 +78,7 @@ func prepare(i instance.Instance) (*exec.Cmd, string, error) {
 	} else if ok {
 		fmt.Printf("%s: committed config changes\n", i.Name)
 	}
-	if steam.IsNixOS() {
+	if steam.IsNixOS() && !l.Wine {
 		// steam-run gives the server a fresh, empty /tmp.
 		if strings.HasPrefix(i.Dir, "/tmp/") {
 			return nil, "", fmt.Errorf("on NixOS, steam-run hides /tmp, so the server can't see %s; use a --home outside /tmp", i.Dir)
@@ -85,17 +91,30 @@ func prepare(i instance.Instance) (*exec.Cmd, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	launcher := filepath.Join(i.ServerDir(), filepath.FromSlash(g.Launch[runtime.GOOS].Command))
+	launcher := filepath.Join(i.ServerDir(), filepath.FromSlash(l.Command))
 	if _, err := os.Stat(launcher); err != nil {
 		return nil, "", fmt.Errorf("server not installed (%v); run: gsm update %s", err, i.Name)
 	}
-	name := launcher
-	if steam.IsNixOS() {
-		name, argv = "steam-run", append([]string{launcher}, argv...)
-	}
+	name, argv := launchCommand(launcher, argv, l.Wine, steam.IsNixOS())
 	c := exec.Command(name, argv...)
 	c.Dir = i.ServerDir()
+	if l.Wine {
+		c.Env = append(os.Environ(), "WINEPREFIX="+i.WinePrefix())
+	}
 	return c, repo.Head(), nil
+}
+
+// launchCommand returns the program and arguments that run launcher: through
+// Wine for a Windows server, through steam-run on NixOS (Wine from nixpkgs
+// runs without it), otherwise directly.
+func launchCommand(launcher string, args []string, wine, nixos bool) (string, []string) {
+	switch {
+	case wine:
+		return "wine", append([]string{launcher}, args...)
+	case nixos:
+		return "steam-run", append([]string{launcher}, args...)
+	}
+	return launcher, args
 }
 
 // openLog appends to the instance log with a header for this run.
@@ -199,7 +218,7 @@ func stop(e env, i instance.Instance) error {
 		return err
 	}
 	fmt.Printf("%s: stopping (up to %s)...\n", i.Name, g.StopTimeout)
-	killed, warning, err := proc.Stop(st, g.StopTimeout)
+	killed, warning, err := proc.Stop(st, g.Signal(), g.StopTimeout)
 	if warning != nil {
 		fmt.Fprintf(os.Stderr, "%s: warning: %v\n", i.Name, warning)
 	}
@@ -280,7 +299,7 @@ func cmdRun(e env, args []string) error {
 		fmt.Printf("%s: server exited\n", i.Name)
 	case <-sig:
 		fmt.Printf("\n%s: stopping (up to %s)...\n", i.Name, g.StopTimeout)
-		_, warning, err := proc.Stop(st, g.StopTimeout)
+		_, warning, err := proc.Stop(st, g.Signal(), g.StopTimeout)
 		if warning != nil {
 			fmt.Fprintf(os.Stderr, "%s: warning: %v\n", i.Name, warning)
 		}
@@ -428,7 +447,7 @@ func cmdUpdate(e env, args []string) error {
 		return err
 	}
 	before, _ := steam.BuildID(i.ServerDir(), g.SteamAppID)
-	if err := steam.Install(i.ServerDir(), g.SteamAppID, os.Stdout); err != nil {
+	if err := steam.Install(i.ServerDir(), g.SteamAppID, g.InstallPlatform(runtime.GOOS), os.Stdout); err != nil {
 		return err
 	}
 	if err := linkData(i, g); err != nil {

@@ -12,6 +12,7 @@ import (
 	"io/fs"
 	"os"
 	"os/exec"
+	"syscall"
 	"time"
 
 	"github.com/chopsticks-user/gsm/internal/fsutil"
@@ -69,7 +70,7 @@ func Launch(c *exec.Cmd, stateFile, instance string) (State, error) {
 	st := State{PID: c.Process.Pid, Start: t, Instance: instance}
 	b, _ := json.Marshal(st)
 	if err := fsutil.WriteAtomic(stateFile, b, 0o644); err != nil {
-		Stop(st, 5*time.Second) // don't leave a server gsm can't find
+		Stop(st, syscall.SIGTERM, 5*time.Second) // don't leave a server gsm can't find
 		return State{}, err
 	}
 	return st, nil
@@ -78,13 +79,13 @@ func Launch(c *exec.Cmd, stateFile, instance string) (State, error) {
 // terminateGroup is terminate, replaceable in tests.
 var terminateGroup = terminate
 
-// Stop asks the server's process group to exit, waits up to timeout, then
-// kills it. It reports whether a kill was needed. A stop request that
-// fails is returned as warning, not err: it may have been delivered anyway,
-// so Stop still waits the full timeout (the server may be saving) and then
-// force-stops.
-func Stop(st State, timeout time.Duration) (killed bool, warning, err error) {
-	if terr := terminateGroup(st.PID); terr != nil {
+// Stop asks the server's process group to exit with sig (Ctrl+Break on
+// Windows), waits up to timeout, then kills it. It reports whether a kill
+// was needed. A stop request that fails is returned as warning, not err: it
+// may have been delivered anyway, so Stop still waits the full timeout (the
+// server may be saving) and then force-stops.
+func Stop(st State, sig syscall.Signal, timeout time.Duration) (killed bool, warning, err error) {
+	if terr := terminateGroup(st.PID, sig); terr != nil {
 		warning = fmt.Errorf("stop request failed: %w", terr)
 	}
 	if waitGone(st, timeout) {

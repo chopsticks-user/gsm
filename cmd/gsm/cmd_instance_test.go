@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"testing"
 
 	"github.com/chopsticks-user/gsm/internal/game"
@@ -66,5 +67,25 @@ func TestLinkDataConfigFile(t *testing.T) {
 	}
 	if err := linkData(inst, g); err == nil || readCfg() != "{oops" {
 		t.Fatalf("invalid config: err %v, content %q", err, readCfg())
+	}
+}
+
+// A Wine launch runs "wine <exe> <args>", never through steam-run; other
+// launches keep going through steam-run on NixOS.
+func TestLaunchCommand(t *testing.T) {
+	for _, c := range []struct {
+		wine, nixos bool
+		name        string
+		args        []string
+	}{
+		{true, true, "wine", []string{"/s/srv.exe", "-a"}},
+		{true, false, "wine", []string{"/s/srv.exe", "-a"}},
+		{false, true, "steam-run", []string{"/s/srv.exe", "-a"}},
+		{false, false, "/s/srv.exe", []string{"-a"}},
+	} {
+		name, args := launchCommand("/s/srv.exe", []string{"-a"}, c.wine, c.nixos)
+		if name != c.name || !slices.Equal(args, c.args) {
+			t.Errorf("wine %v nixos %v: %s %v", c.wine, c.nixos, name, args)
+		}
 	}
 }

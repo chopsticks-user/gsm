@@ -18,9 +18,15 @@ import (
 var Command = "steamcmd"
 
 // Install installs or updates appID into dir (absolute) and validates files.
-func Install(dir, appID string, out io.Writer) error {
-	c := exec.Command(Command, "+force_install_dir", dir, "+login", "anonymous",
-		"+app_update", appID, "validate", "+quit")
+// A non-empty platform (such as "windows") installs that OS's build instead
+// of the host's, for servers run through Wine.
+func Install(dir, appID, platform string, out io.Writer) error {
+	var args []string
+	if platform != "" {
+		args = []string{"+@sSteamCmdForcePlatformType", platform}
+	}
+	args = append(args, "+force_install_dir", dir, "+login", "anonymous", "+app_update", appID, "validate", "+quit")
+	c := exec.Command(Command, args...)
 	c.Stdout, c.Stderr = out, out
 	if err := c.Run(); err != nil {
 		return fmt.Errorf("steamcmd: %w", err)

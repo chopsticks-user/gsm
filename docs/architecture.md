@@ -76,6 +76,8 @@ Paths are written with `/` and converted with `filepath.FromSlash`, so one defin
 
 **Config files.** A launch entry names either a config folder (`ConfigDir`, like Palworld) or a single config file (`ConfigFile`) for servers that keep their whole config in one file in the install. That file lives in `config/<file name>`, and the install gets a file symlink to it (`LinkFileTo`, below). If the game sets `ConfigPortKey`, the file is JSON and gsm owns only that top-level key: before every start (and on `create` and `update`) it sets the key to the instance's port, rewriting only the value's bytes so the rest of the file and its formatting stay as they were and config history shows only real changes (`fsutil.SetJSONNumber`). A duplicated key gets every copy set, since parsers differ on which one wins, and a leading UTF-8 BOM is kept. A missing file is created holding just that key, for the server to fill in on its first start; a file that is not a valid JSON object (`null` included) fails with the parse error and is left alone. A hand edit of the port is put back on the next start, since `instance.toml` is the source of the port.
 
+**Wine.** A game with only a Windows server can still run on Linux: its `linux` launch entry sets `Wine` and names the `.exe`. gsm then installs the Windows build (steamcmd `+@sSteamCmdForcePlatformType windows`, see `Game.InstallPlatform`) and launches it through `wine` from PATH, with a Wine prefix per instance in `instances/<name>/wine/`, so instances can't affect each other. The prefix holds only Windows state; Wine creates it on the first start, and deleting it is safe: the next start recreates it. A game can set `StopSignal` (default SIGTERM) for servers that shut down cleanly only on another signal. The `windows` entry of the same game runs natively.
+
 `internal/game/game_test.go` checks every built-in definition (`TestBuiltinGamesAreValid`).
 
 ## Data layout
@@ -91,6 +93,7 @@ $GSM_HOME/
       saves.restore/         only during a restore
       saves.old/             only during a restore
       server/                steamcmd install, disposable
+      wine/                  Wine prefix, only for Wine launches, disposable
       logs/server.log        appended, one header per run
       state.json             only while running
   store/
@@ -215,12 +218,12 @@ The "both have files" case is deliberate: gsm never guesses which copy of a worl
 `gsm start <name>`, in order:
 
 1. **Already running?** (the check below) Print `already running` and move on, so `start --all` is safe to repeat.
-2. **Check the platform:** a game without a launch entry for this OS fails with `<game> has no server for <os>`.
+2. **Check the platform:** a game without a launch entry for this OS fails with `<game> has no server for <os>`. A Wine launch without `wine` on PATH fails with `wine not found; install Wine to run <game> on <os>`, before anything is changed.
 3. **Re-check the links** with `LinkTo` (or `LinkFileTo`) and set a config file's port key, before the commit so it records the port the server runs with.
 4. **Commit the config** (`auto: before start`).
-5. **NixOS preparation:** refuse a `$GSM_HOME` under `/tmp`, because `steam-run` gives the server a fresh, empty `/tmp`; copy `steamclient.so` into `~/.steam/sdk64/`. That folder is often a symlink to the folder the file comes from, so `CopyFile` compares device and inode first and skips a copy onto itself rather than replacing Steam's own file with a copy of itself.
+5. **NixOS preparation** (not for Wine launches): refuse a `$GSM_HOME` under `/tmp`, because `steam-run` gives the server a fresh, empty `/tmp`; copy `steamclient.so` into `~/.steam/sdk64/`. That folder is often a symlink to the folder the file comes from, so `CopyFile` compares device and inode first and skips a copy onto itself rather than replacing Steam's own file with a copy of itself.
 6. **Find the launcher** in `server/`. If it is missing (a deleted or failed install), fail with `server not installed (...); run: gsm update <name>`. The config commit from step 4 stays.
-7. **Build the command line** from the args template. On NixOS it is prefixed with `steam-run`. The working directory is `server/`.
+7. **Build the command line** from the args template. A Wine launch runs `wine <exe> <args>` with `WINEPREFIX=<instance>/wine` and no `steam-run`, since Wine from nixpkgs runs as is; otherwise on NixOS it is prefixed with `steam-run`. The working directory is `server/`.
 8. **Open the log** (`logs/server.log`, appended) and write a header: `=== gsm start <RFC 3339 time>, config <rev> ===`.
 9. **Launch detached** (`proc.Launch`): a new session (`setsid`), so closing the terminal sends no SIGHUP and the server's PID is also its process group ID; stdin from the null device, stdout and stderr to the log; read the start time; write `state.json` atomically.
 10. **Catch an immediate crash:** reap the child in the background and wait 2 seconds. If the server is already gone, clear the state file and report `server exited right after start`. Reaping matters: an unreaped dead child stays a zombie, still a member of its group, and would look alive.
@@ -266,7 +269,7 @@ The fourth row relies on a POSIX guarantee: the OS never reuses a PID while it i
 
 1. **Stop addons** first, so the tunnel goes down before the game.
 2. **Not running?** Print `not running`, remove a stale state file, done.
-3. **SIGTERM to the whole group** (`kill(-pgid, SIGTERM)`; Ctrl+Break on Windows). Signalling only the launched PID would miss the real server. If sending the request fails, gsm warns and carries on with step 4 anyway: the request may have been delivered, and the server may be saving.
+3. **The game's stop signal to the whole group** (`kill(-pgid, sig)`: SIGTERM unless the game sets another, such as SIGINT for a server under Wine, which SIGTERM kills without saving; Ctrl+Break on Windows). Signalling only the launched PID would miss the real server. If sending the request fails, gsm warns and carries on with step 4 anyway: the request may have been delivered, and the server may be saving.
 4. **Wait,** checking every 200 ms with the running check, up to the game's stop timeout.
 5. **SIGKILL to the group** if it's still there, wait up to 10 more seconds, report `did not exit in time, killed`.
 6. **Clear `state.json`.**
