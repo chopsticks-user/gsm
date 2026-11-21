@@ -58,7 +58,7 @@ nixpkgs.overlays = [ inputs.gsm.overlays.default ];
 environment.systemPackages = [ pkgs.gsm ];  # or home.packages
 ```
 
-The overlay builds gsm with your nixpkgs, whose Go must be at least the `go` line in `go.mod`. `nix run github:chopsticks-user/gsm -- version` tries it without installing.
+The overlay adds the flake's own build (with its pinned nixpkgs), so it works whatever Go your nixpkgs has. `nix run github:chopsticks-user/gsm -- version` tries it without installing.
 
 To develop gsm, see [docs/development.md](docs/development.md).
 

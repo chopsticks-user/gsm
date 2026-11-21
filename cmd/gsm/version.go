@@ -10,10 +10,14 @@ import (
 // Without it, the module version from the build info is used when there is one.
 var version = "dev"
 
+// commit is set by builds without VCS info, such as the Nix package:
+// -ldflags "-X main.commit=abc1234". Otherwise the build info supplies it.
+var commit string
+
 // versionString describes this binary: its version, the commit it was built
 // from (when the build recorded it) and the Go toolchain.
 func versionString() string {
-	v, commit, dirty := version, "unknown", false
+	v, c, dirty := version, "unknown", false
 	if bi, ok := debug.ReadBuildInfo(); ok {
 		// go install module@v1.2.3 and builds from a tagged checkout record it.
 		if v == "dev" && bi.Main.Version != "" && bi.Main.Version != "(devel)" {
@@ -22,14 +26,17 @@ func versionString() string {
 		for _, s := range bi.Settings {
 			switch s.Key {
 			case "vcs.revision":
-				commit = s.Value[:min(12, len(s.Value))]
+				c = s.Value[:min(12, len(s.Value))]
 			case "vcs.modified":
 				dirty = s.Value == "true"
 			}
 		}
 	}
 	if dirty {
-		commit += "-dirty"
+		c += "-dirty"
 	}
-	return fmt.Sprintf("gsm %s (commit %s, %s)", v, commit, runtime.Version())
+	if commit != "" {
+		c = commit
+	}
+	return fmt.Sprintf("gsm %s (commit %s, %s)", v, c, runtime.Version())
 }

@@ -24,13 +24,14 @@
         desktopPath = "$HOME/.local/share/applications";
       };
 
-      # gsm built with a given pkgs, so the overlay uses the consumer's nixpkgs.
-      version = self.shortRev or self.dirtyShortRev or "dev";
+      # The build has no .git, so the commit is passed in; the version stays "dev"
+      # rather than pretending a commit is a release.
+      commit = self.shortRev or self.dirtyShortRev or "unknown";
       gsmFor =
         pkgs:
         pkgs.buildGoModule {
           pname = "gsm";
-          inherit version;
+          version = "dev-${commit}";
           src = self;
           # Recomputed by scripts/update-vendorhash.sh when go.mod or go.sum change.
           vendorHash = "sha256-X1Jc68JkeAxNBY3aM8ByCd3zjIlTRMVrU2QA1N6noHM=";
@@ -39,7 +40,7 @@
           ldflags = [
             "-s"
             "-w"
-            "-X main.version=${version}"
+            "-X main.commit=${commit}"
           ];
           # The tests need git and real processes; verify runs them, not the sandbox.
           doCheck = false;
@@ -86,29 +87,24 @@
             desktopEntry = "${meta.desktopPath}/${meta.ide.exec}-${meta.name}.desktop";
           in
           {
-            install =
-              let
-                developCmdArgumentPath =
-                  "$PROJECT_PATH"; # git-aware: copies tracked files only, not .go/
-              in
-              {
-                type = "app";
-                program = toString (
-                  pkgs.writeShellScript "install" ''
-                    PROJECT_PATH=$(realpath "''${1:-$(git rev-parse --show-toplevel)}")
-                    mkdir -p "${meta.desktopPath}"
-                    cat > "${desktopEntry}" <<DESKTOP
-                    [Desktop Entry]
-                    Name=${meta.ide.name} (${meta.name})
-                    Exec=nix develop "${developCmdArgumentPath}" -c ${meta.ide.exec} "$PROJECT_PATH"
-                    Path=$PROJECT_PATH
-                    Icon=${meta.ide.icon}
-                    Type=Application
-                    Categories=Development;
-                    DESKTOP
-                  ''
-                );
-              };
+            install = {
+              type = "app";
+              program = toString (
+                pkgs.writeShellScript "install" ''
+                  PROJECT_PATH=$(realpath "''${1:-$(git rev-parse --show-toplevel)}")
+                  mkdir -p "${meta.desktopPath}"
+                  cat > "${desktopEntry}" <<DESKTOP
+                  [Desktop Entry]
+                  Name=${meta.ide.name} (${meta.name})
+                  Exec=nix develop "$PROJECT_PATH" -c ${meta.ide.exec} "$PROJECT_PATH"
+                  Path=$PROJECT_PATH
+                  Icon=${meta.ide.icon}
+                  Type=Application
+                  Categories=Development;
+                  DESKTOP
+                ''
+              );
+            };
             uninstall = {
               type = "app";
               program = toString (
@@ -121,6 +117,10 @@
       }
     )
     // {
-      overlays.default = final: _prev: { gsm = gsmFor final; };
+      # This flake's own build (its pinned nixpkgs and Go), so vendorHash always
+      # matches the Go it was computed with, whatever Go the consumer has.
+      overlays.default = final: _prev: {
+        gsm = self.packages.${final.stdenv.hostPlatform.system}.default;
+      };
     };
 }

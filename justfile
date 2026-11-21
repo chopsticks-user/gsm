@@ -10,10 +10,10 @@ default:
     @just --justfile {{justfile()}} --list
 
 # Build gsm and install it into dir (default ~/.local/bin). On NixOS, use the flake's package or overlay instead
-install dir="~/.local/bin":
-    mkdir -p {{dir}}
-    go build -ldflags "-X main.version=$(git describe --tags --always --dirty)" -o {{dir}}/gsm ./cmd/gsm
-    {{dir}}/gsm version
+install dir="$HOME/.local/bin":
+    mkdir -p "{{dir}}"
+    go build -ldflags "-X main.version=$(git describe --tags --always --dirty 2>/dev/null || echo dev)" -o "{{dir}}/gsm" ./cmd/gsm
+    "{{dir}}/gsm" version
 
 # Build gsm into build/
 build:

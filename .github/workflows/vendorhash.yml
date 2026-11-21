@@ -4,12 +4,14 @@ name: vendorHash
 # Go module PRs would fail the Nix package build. This recomputes the hash and
 # pushes it to the PR branch.
 #
-# pull_request_target, because a run triggered by Dependabot gets a read-only
-# token. It checks out the PR branch but runs only this repo's script on
-# Dependabot's own PRs. The push uses VENDORHASH_TOKEN, a fine-grained token
-# with Contents: write on this repo, stored as a Dependabot secret (the only
-# secrets such runs can read): a push made with GITHUB_TOKEN wouldn't trigger
-# CI, and the PR's required checks would never run on the fix.
+# pull_request_target runs in the base branch's context, so it can read the
+# VENDORHASH_TOKEN Actions secret: a fine-grained token with Contents: write
+# on this repo. The default GITHUB_TOKEN won't do, since its pushes don't
+# trigger CI and the PR's required checks would never run on the fix.
+#
+# The PR's content is untrusted: the script comes from the base branch, the
+# PR's flake is only evaluated (pure, sandboxed), and the token is used by
+# the push step alone, never stored in the checkout.
 on:
   pull_request_target:
     paths: [go.mod, go.sum]
@@ -22,17 +24,30 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
+      - name: Check out the base branch (the script)
+        uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.pull_request.head.ref }}
-          token: ${{ secrets.VENDORHASH_TOKEN }}
+          path: base
+          persist-credentials: false
+      - name: Check out the PR
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: pr
+          persist-credentials: false
       - uses: cachix/install-nix-action@v31
       - name: Recompute vendorHash
-        run: scripts/update-vendorhash.sh
+        run: base/scripts/update-vendorhash.sh pr
       - name: Push the fix
+        working-directory: pr
+        env:
+          TOKEN: ${{ secrets.VENDORHASH_TOKEN }}
+          REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          BRANCH: ${{ github.event.pull_request.head.ref }}
         run: |
           git diff --quiet flake.nix && exit 0
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git commit -m 'Update vendorHash' flake.nix
-          git push
+          git push "https://x-access-token:${TOKEN}@github.com/${REPO}.git" "HEAD:refs/heads/${BRANCH}"
