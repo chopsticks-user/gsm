@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -29,7 +30,7 @@ func TestStopKillsWholeGroup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := Stop(st, time.Second); err != nil {
+	if _, _, err := Stop(st, syscall.SIGTERM, time.Second); err != nil {
 		t.Fatal(err)
 	}
 	if Alive(State{PID: child, Start: childStart}) {
@@ -51,10 +52,20 @@ func TestLeaderExitsChildKeepsRunning(t *testing.T) {
 	if _, ok, _ := Running(sf, "main"); !ok {
 		t.Fatal("server reported stopped while its child runs")
 	}
-	if _, _, err := Stop(st, time.Second); err != nil {
+	if _, _, err := Stop(st, syscall.SIGTERM, time.Second); err != nil {
 		t.Fatal(err)
 	}
 	if _, ok, _ := Running(sf, "main"); ok {
 		t.Fatal("still running after Stop")
+	}
+}
+
+// A game's stop signal reaches the group: SIGINT stops a server that
+// ignores SIGTERM without a kill.
+func TestStopWithGameSignal(t *testing.T) {
+	st, _ := launch(t, "sigint", "main")
+	killed, _, err := Stop(st, syscall.SIGINT, 5*time.Second)
+	if err != nil || killed {
+		t.Fatalf("killed %v, err %v", killed, err)
 	}
 }

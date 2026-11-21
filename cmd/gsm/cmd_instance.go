@@ -43,6 +43,12 @@ func cmdGame(e env, args []string) error {
 		if f := g.Launch[runtime.GOOS].ConfigFile; f != "" {
 			fmt.Printf("config file:   %s\n", f)
 		}
+		if g.Launch[runtime.GOOS].Wine {
+			fmt.Println("runs through:  Wine (Windows build)")
+		}
+		if g.StopSignal != 0 && runtime.GOOS != "windows" { // Windows always gets Ctrl+Break
+			fmt.Printf("stop signal:   %s\n", g.Signal())
+		}
 		if g.ConfigPortKey != "" {
 			fmt.Printf("port key:      %s (set to the instance's port before each start)\n", g.ConfigPortKey)
 		}
@@ -157,7 +163,7 @@ func setUpInstance(inst instance.Instance, g game.Game) error {
 		}
 	}
 	fmt.Printf("installing %s with steamcmd (this can take a while)...\n", g.Title)
-	if err := steam.Install(inst.ServerDir(), g.SteamAppID, os.Stdout); err != nil {
+	if err := steam.Install(inst.ServerDir(), g.SteamAppID, g.InstallPlatform(runtime.GOOS), os.Stdout); err != nil {
 		return err
 	}
 	if g.DefaultConfig != "" {
@@ -240,6 +246,12 @@ func cmdDoctor(e env, args []string) error {
 	all, err := instance.List(e.home)
 	if err != nil {
 		return err
+	}
+	for _, i := range all {
+		if g, err := game.Get(i.Game); err == nil && g.Launch[runtime.GOOS].Wine {
+			tool("wine", "needed to run "+g.Title+" on "+runtime.GOOS)
+			break
+		}
 	}
 	needed := map[string]bool{}
 	for _, i := range all {

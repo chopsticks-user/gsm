@@ -8,6 +8,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -21,6 +22,9 @@ type Launch struct {
 	// ConfigDir or ConfigFile, not both.
 	ConfigFile string
 	SavesDir   string // where the server writes its saves
+	// Wine runs Command, a Windows server, through Wine, and installs the
+	// game's Windows build. For games without a server for this OS.
+	Wine bool
 }
 
 type Game struct {
@@ -32,6 +36,9 @@ type Game struct {
 	DefaultPort int
 	Defaults    map[string]string // default values for Args placeholders
 	StopTimeout time.Duration
+	// StopSignal asks the server to shut down; zero means SIGTERM. Windows
+	// always gets Ctrl+Break.
+	StopSignal syscall.Signal
 	// ConfigPortKey is the top-level JSON key in a Launch.ConfigFile that
 	// holds the port; gsm sets it to the instance's port before each start.
 	ConfigPortKey string
@@ -132,4 +139,21 @@ func Get(name string) (Game, error) {
 		}
 	}
 	return Game{}, fmt.Errorf("unknown game %q (see: gsm game list)", name)
+}
+
+// Signal is the signal that asks the server to shut down.
+func (g Game) Signal() syscall.Signal {
+	if g.StopSignal == 0 {
+		return syscall.SIGTERM
+	}
+	return g.StopSignal
+}
+
+// InstallPlatform is the steamcmd platform to force on goos: Windows for a
+// Wine launch, otherwise none (the host's).
+func (g Game) InstallPlatform(goos string) string {
+	if g.Launch[goos].Wine {
+		return "windows"
+	}
+	return ""
 }

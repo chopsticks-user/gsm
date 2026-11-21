@@ -4,6 +4,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -11,6 +12,9 @@ import (
 // writes an app manifest into the +force_install_dir directory.
 func TestMain(m *testing.M) {
 	if mode := os.Getenv("GSM_FAKE_STEAMCMD"); mode != "" {
+		if p := os.Getenv("GSM_FAKE_STEAMCMD_ARGS"); p != "" {
+			os.WriteFile(p, []byte(strings.Join(os.Args[1:], " ")), 0o644)
+		}
 		if mode == "ok" {
 			for i, a := range os.Args {
 				if a == "+force_install_dir" {
@@ -38,15 +42,35 @@ func TestInstall(t *testing.T) {
 	dir := t.TempDir()
 
 	t.Setenv("GSM_FAKE_STEAMCMD", "broken")
-	if err := Install(dir, "42", io.Discard); err == nil {
+	if err := Install(dir, "42", "", io.Discard); err == nil {
 		t.Fatal("want error when steamcmd exits 0 without installing")
 	}
 
 	t.Setenv("GSM_FAKE_STEAMCMD", "ok")
-	if err := Install(dir, "42", io.Discard); err != nil {
+	if err := Install(dir, "42", "", io.Discard); err != nil {
 		t.Fatal(err)
 	}
 	if id, err := BuildID(dir, "42"); err != nil || id != "18519483" {
 		t.Fatalf("BuildID = %q, %v", id, err)
+	}
+}
+
+// A forced platform comes first, before steamcmd reads the install dir.
+func TestInstallPlatform(t *testing.T) {
+	Command = os.Args[0]
+	dir := t.TempDir()
+	argsFile := filepath.Join(t.TempDir(), "args")
+	t.Setenv("GSM_FAKE_STEAMCMD", "ok")
+	t.Setenv("GSM_FAKE_STEAMCMD_ARGS", argsFile)
+	for platform, want := range map[string]string{
+		"windows": "+@sSteamCmdForcePlatformType windows +force_install_dir " + dir + " +login anonymous +app_update 42 validate +quit",
+		"":        "+force_install_dir " + dir + " +login anonymous +app_update 42 validate +quit",
+	} {
+		if err := Install(dir, "42", platform, io.Discard); err != nil {
+			t.Fatal(err)
+		}
+		if b, _ := os.ReadFile(argsFile); string(b) != want {
+			t.Errorf("platform %q: args %q, want %q", platform, b, want)
+		}
 	}
 }

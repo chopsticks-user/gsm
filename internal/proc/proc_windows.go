@@ -38,8 +38,8 @@ func detach(c *exec.Cmd) {
 // terminate sends Ctrl+Break to the server's process group. Doing that means
 // detaching from our own console and attaching to the server's, so it runs
 // in a short-lived copy of gsm (see HandleHelper) to leave this process's
-// console untouched.
-func terminate(pid int) error {
+// console untouched. sig is ignored: Windows has no signals.
+func terminate(pid int, _ syscall.Signal) error {
 	exe, err := os.Executable()
 	if err != nil {
 		return err

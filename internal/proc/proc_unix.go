@@ -14,8 +14,8 @@ func detach(c *exec.Cmd) { c.SysProcAttr = &syscall.SysProcAttr{Setsid: true} }
 
 // Signal the whole group (negative PID): PalServer.sh and steam-run start the
 // real binary as a child, and signalling only the parent would leave it running.
-func terminate(pid int) error { return ignoreGone(syscall.Kill(-pid, syscall.SIGTERM)) }
-func kill(pid int) error      { return ignoreGone(syscall.Kill(-pid, syscall.SIGKILL)) }
+func terminate(pid int, sig syscall.Signal) error { return ignoreGone(syscall.Kill(-pid, sig)) }
+func kill(pid int) error                          { return ignoreGone(syscall.Kill(-pid, syscall.SIGKILL)) }
 
 // groupAlive reports whether any process in the group still exists.
 func groupAlive(pid int) bool { return syscall.Kill(-pid, 0) == nil }

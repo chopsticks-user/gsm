@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -99,6 +100,12 @@ func validate(g Game) error {
 		if g.DefaultConfig != "" && (within(g.DefaultConfig, config) || within(g.DefaultConfig, l.SavesDir)) {
 			return fmt.Errorf("default config %q is inside a path that gets linked to user data", g.DefaultConfig)
 		}
+		if l.Wine && g.StopSignal == 0 {
+			return fmt.Errorf("%s: a Wine launch needs a stop signal: SIGTERM kills Wine without letting the server save", goos)
+		}
+		if l.Wine && goos == "windows" {
+			return errors.New("windows runs Windows servers natively, not through Wine")
+		}
 		if g.DefaultConfig != "" && l.ConfigFile != "" {
 			return fmt.Errorf("%s: a default config can only seed a config dir; a config file is created by gsm or the server", goos)
 		}
@@ -187,6 +194,11 @@ func TestValidateCatchesMistakes(t *testing.T) {
 		{"must be a relative path", launch("linux", Launch{Command: "x", ConfigFile: "../c.json", SavesDir: "s"})},
 		{"overlap", launch("linux", Launch{Command: "x", ConfigFile: "s/c.json", SavesDir: "s"})},
 		{"no config file", func(g *Game) { g.ConfigPortKey = "queryPort" }},
+		{"natively", func(g *Game) {
+			g.StopSignal = syscall.SIGINT
+			g.Launch = map[string]Launch{"windows": {Command: "x.exe", ConfigDir: "c", SavesDir: "s", Wine: true}}
+		}},
+		{"needs a stop signal", launch("linux", Launch{Command: "x.exe", ConfigDir: "c", SavesDir: "s", Wine: true})},
 		{"only seed a config dir", launch("linux", Launch{Command: "x", ConfigFile: "c.json", SavesDir: "s"})},
 		{"neither through {port}", func(g *Game) { g.Args = []string{"-players={players}"} }},
 		{"must be a file name", func(g *Game) { g.DefaultConfigName = "a/b.ini" }},

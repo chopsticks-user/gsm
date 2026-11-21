@@ -39,7 +39,7 @@ install -D -m 755 gsm-linux-amd64 ~/.local/bin/gsm
 gsm version
 ```
 
-gsm needs `git` and `steamcmd` on the machine (and `steam-run` on NixOS); `gsm doctor` checks.
+gsm needs `git` and `steamcmd` on the machine (and `steam-run` on NixOS, and `wine` for a game whose server runs only on Windows); `gsm doctor` checks.
 
 To build from source, see [docs/development.md](docs/development.md).
 
