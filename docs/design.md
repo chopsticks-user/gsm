@@ -72,7 +72,7 @@ These follow the same design but aren't built yet. Each has an issue; which rele
 - **Updates** ([#12](https://github.com/chopsticks-user/gsm/issues/12)): `gsm update --all`.
 - **Unattended running:** log rotation ([#45](https://github.com/chopsticks-user/gsm/issues/45)), and port checks against other programs, not only other instances ([#46](https://github.com/chopsticks-user/gsm/issues/46)).
 - **Addons** ([#13](https://github.com/chopsticks-user/gsm/issues/13)): exercising the playit tunnel for real.
-- **Cross-platform** ([#15](https://github.com/chopsticks-user/gsm/issues/15)): CI on Windows and macOS, and a Job Object instead of the `taskkill` fallback on Windows.
+- **Cross-platform** ([#61](https://github.com/chopsticks-user/gsm/issues/61)): a Job Object instead of the `taskkill` fallback on Windows.
 - **Off-machine backup and recovery** ([#14](https://github.com/chopsticks-user/gsm/issues/14)):
 
   ```
@@ -91,7 +91,7 @@ These follow the same design but aren't built yet. Each has an issue; which rele
 - **Secrets in git:** `AdminPassword` lives in `PalWorldSettings.ini`, which the local config repo tracks. That must be solved before remotes exist.
 - **Snapshot growth:** nothing prunes snapshots yet, and Palworld keeps its own world backups inside `saves/`, which gsm snapshots too.
 - **Log size:** `logs/server.log` grows forever.
-- **Windows:** the code is untested on real Windows.
+- **Windows:** the unit tests run on Windows in CI, but no server has run on real Windows yet.
 - **Power loss:** the folder isn't `fsync`ed after an atomic rename, so a power cut can lose the latest write (never corrupt it).
 
 ## Open questions

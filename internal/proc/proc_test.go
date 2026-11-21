@@ -25,8 +25,10 @@ func TestMain(m *testing.M) {
 		signal.Notify(c, syscall.SIGTERM, os.Interrupt)
 		<-c
 		os.Exit(0)
-	case "stubborn": // ignores the stop signal, so only a kill ends it
-		signal.Ignore(syscall.SIGTERM, os.Interrupt)
+	case "stubborn": // survives the stop signal, so only a kill ends it
+		// Catch the signals and drop them: signal.Ignore on Windows hands
+		// Ctrl+Break to the default handler, which exits the process.
+		signal.Notify(make(chan os.Signal, 1), syscall.SIGTERM, os.Interrupt)
 		time.Sleep(time.Hour)
 		os.Exit(0)
 	case "wrapper": // like PalServer.sh: starts the real server as a child and waits
