@@ -69,11 +69,10 @@ These follow the same design but aren't built yet. Each has an issue; which rele
 - **Config:** `config edit` opens your editor and `config restore <rev>` checks out an old revision ([#10](https://github.com/chopsticks-user/gsm/issues/10)); `config remote` pushes an instance's config repo to a git remote ([#43](https://github.com/chopsticks-user/gsm/issues/43)).
 - **Snapshots** ([#11](https://github.com/chopsticks-user/gsm/issues/11)): `save show` and `save diff` inspect records; `save verify` re-hashes every object to detect disk corruption; `save restore --into <new>` forks a new instance; `pin`, `tag` and `annotate` edit records, and pinned snapshots survive pruning; `save prune` applies the retention policy to records, then deletes objects no remaining record mentions.
 - **Games:** a general game model with a Wine launcher (single JSON config files are done), proven by Enshrouded ([#19](https://github.com/chopsticks-user/gsm/issues/19)); a save-flush method per game (for Palworld, its REST API `/v1/api/save`) so snapshots of a running server are consistent ([#8](https://github.com/chopsticks-user/gsm/issues/8)).
-- **On-disk format versions** ([#44](https://github.com/chopsticks-user/gsm/issues/44)): every format carries a version; data without one is version 1, data from a newer gsm is refused with a clear message.
 - **Updates** ([#12](https://github.com/chopsticks-user/gsm/issues/12)): `gsm update --all`.
 - **Unattended running:** log rotation ([#45](https://github.com/chopsticks-user/gsm/issues/45)), and port checks against other programs, not only other instances ([#46](https://github.com/chopsticks-user/gsm/issues/46)).
 - **Addons** ([#13](https://github.com/chopsticks-user/gsm/issues/13)): exercising the playit tunnel for real.
-- **Cross-platform** ([#15](https://github.com/chopsticks-user/gsm/issues/15)): CI on Windows and macOS, and a Job Object instead of the `taskkill` fallback on Windows.
+- **Cross-platform** ([#61](https://github.com/chopsticks-user/gsm/issues/61)): a Job Object instead of the `taskkill` fallback on Windows.
 - **Off-machine backup and recovery** ([#14](https://github.com/chopsticks-user/gsm/issues/14)):
 
   ```
@@ -92,7 +91,7 @@ These follow the same design but aren't built yet. Each has an issue; which rele
 - **Secrets in git:** `AdminPassword` lives in `PalWorldSettings.ini`, which the local config repo tracks. That must be solved before remotes exist.
 - **Snapshot growth:** nothing prunes snapshots yet, and Palworld keeps its own world backups inside `saves/`, which gsm snapshots too.
 - **Log size:** `logs/server.log` grows forever.
-- **Windows:** the code is untested on real Windows. Games with a single config file need file symlinks there (Developer Mode or admin): a hard link, which needs neither, would split into two copies on gsm's atomic writes and git checkouts, so gsm refuses rather than fall back to one.
+- **Windows:** the unit tests run on Windows in CI, but no server has run on real Windows yet. Games with a single config file need file symlinks there (Developer Mode or admin): a hard link, which needs neither, would split into two copies on gsm's atomic writes and git checkouts, so gsm refuses rather than fall back to one.
 - **Power loss:** the folder isn't `fsync`ed after an atomic rename, so a power cut can lose the latest write (never corrupt it).
 
 ## Open questions

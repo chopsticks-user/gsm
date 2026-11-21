@@ -7,6 +7,7 @@ All notable changes to gsm are listed here. The format follows [Keep a Changelog
 ### Added
 
 - Games whose server keeps its config in one file in the install: gsm links it to `config/<file>` and, for a JSON file with a port key, sets only that key to the instance's port before each start. On Windows this needs file symlinks (Developer Mode or admin).
+- Every on-disk format records its version: `instance.toml`, `state.json`, snapshot records and the store (`store/format`). Data from v0.1.0, which has none, reads as version 1; data from a newer gsm is refused with a message to upgrade gsm.
 
 ## [0.1.0] - 2026-11-19
 

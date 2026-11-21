@@ -53,7 +53,7 @@ func cmdGame(e env, args []string) error {
 
 func cmdList(e env, args []string) error {
 	all, err := instance.List(e.home)
-	if err != nil {
+	if err != nil && len(all) == 0 {
 		return err
 	}
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
@@ -61,7 +61,7 @@ func cmdList(e env, args []string) error {
 	for _, i := range all {
 		fmt.Fprintf(w, "%s\t%s\t%d\t%s\n", i.Name, i.Game, i.Port, strings.Join(i.Addons, ","))
 	}
-	return w.Flush()
+	return errors.Join(err, w.Flush())
 }
 
 func cmdCreate(e env, args []string) error {
