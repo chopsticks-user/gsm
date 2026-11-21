@@ -37,6 +37,23 @@ func TestMain(m *testing.M) {
 		signal.Notify(make(chan os.Signal, 1), syscall.SIGTERM, os.Interrupt)
 		time.Sleep(time.Hour)
 		os.Exit(0)
+	case "orphaner": // starts a child that starts a grandchild and exits, orphaning it; then survives stop requests
+		c := exec.Command(os.Args[0])
+		c.Env = append(os.Environ(), "GSM_FAKE_SERVER=middle")
+		if c.Run() != nil {
+			os.Exit(1)
+		}
+		signal.Notify(make(chan os.Signal, 1), syscall.SIGTERM, os.Interrupt)
+		time.Sleep(time.Hour)
+		os.Exit(0)
+	case "middle":
+		c := exec.Command(os.Args[0])
+		c.Env = append(os.Environ(), "GSM_FAKE_SERVER=stubborn")
+		if c.Start() != nil {
+			os.Exit(1)
+		}
+		os.WriteFile(os.Getenv("GSM_CHILD_PID_FILE"), []byte(strconv.Itoa(c.Process.Pid)), 0o644)
+		os.Exit(0)
 	case "wrapper": // like PalServer.sh: starts the real server as a child and waits
 		c := exec.Command(os.Args[0])
 		c.Env = append(os.Environ(), "GSM_FAKE_SERVER=stubborn")
@@ -63,7 +80,7 @@ func launch(t *testing.T, mode, instance string, extraEnv ...string) (State, str
 	}
 	// Reap the child, as init does for real servers after gsm exits.
 	go c.Wait()
-	t.Cleanup(func() { kill(st.PID) })
+	t.Cleanup(func() { kill(st) })
 	time.Sleep(300 * time.Millisecond) // let it install its signal handlers
 	return st, stateFile
 }
@@ -146,7 +163,7 @@ func TestStopForcesWhenRequestFails(t *testing.T) {
 // A request that fails because the server is already gone is a clean stop.
 func TestStopRequestFailsServerAlreadyGone(t *testing.T) {
 	st, _ := launch(t, "obedient", "main")
-	kill(st.PID)
+	kill(st)
 	if !waitGone(st, 5*time.Second) {
 		t.Fatal("fake server didn't die")
 	}
@@ -171,5 +188,59 @@ func TestStateFormat(t *testing.T) {
 		if _, _, err := Running(sf, "main"); errors.Is(err, fsutil.ErrTooNew) != tooNew {
 			t.Errorf("%s: err = %v", content, err)
 		}
+	}
+}
+
+// A force stop reaches a grandchild whose parent already exited: through the
+// process group on Unix, through the Job Object on Windows (taskkill /T,
+// which follows parent PIDs, would miss it).
+func TestKillReachesOrphanedGrandchild(t *testing.T) {
+	pidFile := filepath.Join(t.TempDir(), "grandchild")
+	st, _ := launch(t, "orphaner", "main", "GSM_CHILD_PID_FILE="+pidFile)
+	var gc int
+	for i := 0; i < 100 && gc == 0; i++ {
+		b, _ := os.ReadFile(pidFile)
+		gc, _ = strconv.Atoi(strings.TrimSpace(string(b)))
+		time.Sleep(50 * time.Millisecond)
+	}
+	if gc == 0 {
+		t.Fatal("no grandchild PID")
+	}
+	t.Cleanup(func() {
+		if p, err := os.FindProcess(gc); err == nil {
+			p.Kill()
+		}
+	})
+	if killed, _, err := Stop(st, syscall.SIGTERM, time.Second); err != nil || !killed {
+		t.Fatalf("killed %v, err %v", killed, err)
+	}
+	for i := 0; i < 100; i++ {
+		if _, err := StartTime(gc); err != nil {
+			return
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatal("orphaned grandchild survived the force stop")
+}
+
+// Like steam-run: the launched process exits while its child keeps running.
+// The server must still count as running, and Stop must still end it.
+func TestLeaderExitsChildKeepsRunning(t *testing.T) {
+	pidFile := filepath.Join(t.TempDir(), "child")
+	st, sf := launch(t, "wrapper", "main", "GSM_CHILD_PID_FILE="+pidFile, "GSM_WRAPPER_EXITS=1")
+	for i := 0; i < 100 && Alive(st); i++ {
+		time.Sleep(50 * time.Millisecond)
+	}
+	if Alive(st) {
+		t.Fatal("wrapper should have exited")
+	}
+	if _, ok, _ := Running(sf, "main"); !ok {
+		t.Fatal("server reported stopped while its child runs")
+	}
+	if _, _, err := Stop(st, syscall.SIGTERM, time.Second); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, _ := Running(sf, "main"); ok {
+		t.Fatal("still running after Stop")
 	}
 }
