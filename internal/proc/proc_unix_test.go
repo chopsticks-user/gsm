@@ -48,13 +48,13 @@ func TestLeaderExitsChildKeepsRunning(t *testing.T) {
 	if Alive(st) {
 		t.Fatal("wrapper should have exited")
 	}
-	if _, ok := Running(sf, "main"); !ok {
+	if _, ok, _ := Running(sf, "main"); !ok {
 		t.Fatal("server reported stopped while its child runs")
 	}
 	if _, _, err := Stop(st, time.Second); err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := Running(sf, "main"); ok {
+	if _, ok, _ := Running(sf, "main"); ok {
 		t.Fatal("still running after Stop")
 	}
 }

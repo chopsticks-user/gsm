@@ -4,6 +4,10 @@ All notable changes to gsm are listed here. The format follows [Keep a Changelog
 
 ## [Unreleased]
 
+### Added
+
+- Every on-disk format records its version: `instance.toml`, `state.json`, snapshot records and the store (`store/format`). Data from v0.1.0, which has none, reads as version 1; data from a newer gsm is refused with a message to upgrade gsm.
+
 ## [0.1.0] - 2026-11-19
 
 The first release: Palworld dedicated servers on Linux and Windows.

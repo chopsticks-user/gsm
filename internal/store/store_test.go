@@ -4,12 +4,14 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/chopsticks-user/gsm/internal/fsutil"
 	"github.com/chopsticks-user/gsm/internal/proc"
 )
 
@@ -265,4 +267,43 @@ func read(t *testing.T, p string) string {
 		t.Fatal(err)
 	}
 	return string(b)
+}
+
+// A store and records from v0.1.0 carry no format and read as version 1;
+// the first lock records the layout version. Newer ones are refused.
+func TestFormatVersions(t *testing.T) {
+	s, saves := setup(t)
+	rec, err := s.Snapshot(saves, Record{Instance: "main", Trigger: "manual"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rec.Format != RecordFormat {
+		t.Fatalf("record format %d", rec.Format)
+	}
+	write(t, filepath.Join(s.Dir, "snapshots", "main", "old.json"), `{"id":"0ld","instance":"main","files":[]}`)
+	if all, err := s.List("main"); err != nil || len(all) != 2 {
+		t.Fatalf("List = %v, %v", all, err)
+	}
+	unlock, err := s.Lock(time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	unlock()
+	if b, _ := os.ReadFile(filepath.Join(s.Dir, "format")); string(b) != "1\n" {
+		t.Fatalf("store/format = %q", b)
+	}
+
+	write(t, filepath.Join(s.Dir, "snapshots", "main", "new.json"), `{"format":2,"id":"n3w","instance":"main","files":[]}`)
+	if _, err := s.List("main"); !errors.Is(err, fsutil.ErrTooNew) {
+		t.Fatalf("List with a newer record = %v", err)
+	}
+	os.Remove(filepath.Join(s.Dir, "snapshots", "main", "new.json"))
+
+	write(t, filepath.Join(s.Dir, "format"), "2\n")
+	if _, err := s.List("main"); !errors.Is(err, fsutil.ErrTooNew) {
+		t.Fatalf("List in a newer store = %v", err)
+	}
+	if _, err := s.Lock(time.Second); !errors.Is(err, fsutil.ErrTooNew) {
+		t.Fatalf("Lock in a newer store = %v", err)
+	}
 }

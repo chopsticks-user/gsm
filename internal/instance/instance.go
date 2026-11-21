@@ -19,8 +19,13 @@ import (
 	"github.com/chopsticks-user/gsm/internal/game"
 )
 
+// Format is the version of instance.toml this gsm writes and the newest it
+// reads. A file without one was written by v0.1.0 and is version 1.
+const Format = 1
+
 // Config is instance.toml.
 type Config struct {
+	Format    int               `toml:"format"`
 	Game      string            `toml:"game"`
 	Port      int               `toml:"port"`
 	Settings  map[string]string `toml:"settings,omitempty"`
@@ -73,9 +78,15 @@ func Load(home, name string) (Instance, error) {
 		}
 		return Instance{}, fmt.Errorf("read %s: %w", i.TOMLPath(), err)
 	}
+	if err := fsutil.CheckFormat(i.TOMLPath(), i.Format, Format); err != nil {
+		return Instance{}, err
+	}
 	return i, nil
 }
 
+// List returns every instance it can read. Instances written by a newer gsm
+// are left out and named in the error, so callers can act on the rest
+// without the others looking gone.
 func List(home string) ([]Instance, error) {
 	entries, err := os.ReadDir(Root(home))
 	if errors.Is(err, fs.ErrNotExist) {
@@ -85,23 +96,30 @@ func List(home string) ([]Instance, error) {
 		return nil, err
 	}
 	var out []Instance
+	var tooNew []error
 	for _, e := range entries {
 		if !e.IsDir() || ValidName(e.Name()) != nil {
 			continue
 		}
 		i, err := Load(home, e.Name())
+		if errors.Is(err, fsutil.ErrTooNew) {
+			tooNew = append(tooNew, err)
+			continue
+		}
 		if err != nil {
 			continue // a half-created instance has no instance.toml yet
 		}
 		out = append(out, i)
 	}
 	sort.Slice(out, func(a, b int) bool { return out[a].Name < out[b].Name })
-	return out, nil
+	return out, errors.Join(tooNew...)
 }
 
 func (i Instance) Save() error {
+	c := i.Config
+	c.Format = Format
 	var buf bytes.Buffer
-	if err := toml.NewEncoder(&buf).Encode(i.Config); err != nil {
+	if err := toml.NewEncoder(&buf).Encode(c); err != nil {
 		return err
 	}
 	return fsutil.WriteAtomic(i.TOMLPath(), buf.Bytes(), 0o644)
