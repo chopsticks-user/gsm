@@ -7,6 +7,7 @@ import (
 	iofs "io/fs"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -39,6 +40,12 @@ func cmdGame(e env, args []string) error {
 			g.Name, g.Title, g.SteamAppID, strings.Join(g.Platforms(), ", "), g.DefaultPort)
 		fmt.Printf("args:          %s\nsettings:      %s\nstop timeout:  %s\n",
 			strings.Join(g.Args, " "), settingsLine(g), g.StopTimeout)
+		if f := g.Launch[runtime.GOOS].ConfigFile; f != "" {
+			fmt.Printf("config file:   %s\n", f)
+		}
+		if g.ConfigPortKey != "" {
+			fmt.Printf("port key:      %s (set to the instance's port before each start)\n", g.ConfigPortKey)
+		}
 		return nil
 	}
 	return errors.New("usage: gsm game list | show <game>")
@@ -182,11 +189,22 @@ func setUpInstance(inst instance.Instance, g game.Game) error {
 	return err
 }
 
-// linkData links config/ and saves/ into the paths the server expects, so
-// the install stays disposable.
+// linkData links config/ (or the one config file in it) and saves/ into the
+// paths the server expects, so the install stays disposable, and sets the
+// port in a config file that holds one.
 func linkData(inst instance.Instance, g game.Game) error {
 	l := g.Launch[runtime.GOOS]
-	if err := fsutil.LinkTo(filepath.Join(inst.ServerDir(), filepath.FromSlash(l.ConfigDir)), inst.ConfigDir()); err != nil {
+	if l.ConfigFile != "" {
+		file := filepath.Join(inst.ConfigDir(), path.Base(l.ConfigFile))
+		if err := fsutil.LinkFileTo(filepath.Join(inst.ServerDir(), filepath.FromSlash(l.ConfigFile)), file); err != nil {
+			return err
+		}
+		if g.ConfigPortKey != "" {
+			if err := fsutil.SetJSONNumber(file, g.ConfigPortKey, inst.Port); err != nil {
+				return err
+			}
+		}
+	} else if err := fsutil.LinkTo(filepath.Join(inst.ServerDir(), filepath.FromSlash(l.ConfigDir)), inst.ConfigDir()); err != nil {
 		return err
 	}
 	return fsutil.LinkTo(filepath.Join(inst.ServerDir(), filepath.FromSlash(l.SavesDir)), inst.SavesDir())

@@ -29,7 +29,7 @@ func LinkTo(path, target string) error {
 		return err
 	// Symlinks on Unix; Go reports Windows junctions as ModeIrregular.
 	case fi.Mode()&(fs.ModeSymlink|fs.ModeIrregular) != 0:
-		if dest, err := os.Readlink(path); err == nil && sameDir(dest, target) {
+		if dest, err := os.Readlink(path); err == nil && samePath(dest, target) {
 			return nil
 		}
 		if err := os.Remove(path); err != nil { // removes the link only, never its target
@@ -56,7 +56,7 @@ func LinkTo(path, target string) error {
 	return makeDirLink(target, path)
 }
 
-func sameDir(a, b string) bool {
+func samePath(a, b string) bool {
 	if filepath.Clean(a) == filepath.Clean(b) {
 		return true
 	}

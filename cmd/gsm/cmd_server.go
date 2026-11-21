@@ -48,8 +48,8 @@ func cmdStart(e env, args []string) error {
 	return err
 }
 
-// prepare does everything start and run share before launching: commit
-// config so the run maps to an exact revision, platform setup and links.
+// prepare does everything start and run share before launching: links and
+// config (committed, so the run maps to an exact revision), platform setup.
 // It returns the command to launch and the config revision.
 func prepare(i instance.Instance) (*exec.Cmd, string, error) {
 	g, err := game.Get(i.Game)
@@ -58,6 +58,11 @@ func prepare(i instance.Instance) (*exec.Cmd, string, error) {
 	}
 	if !g.Supports(runtime.GOOS) {
 		return nil, "", fmt.Errorf("%s has no server for %s", g.Title, runtime.GOOS)
+	}
+	// update with validate may have replaced the links; LinkTo is a no-op when
+	// they're fine. Before the commit, so it includes the port gsm sets.
+	if err := linkData(i, g); err != nil {
+		return nil, "", err
 	}
 	repo, err := gitrepo.Init(i.Dir)
 	if err != nil {
@@ -76,10 +81,6 @@ func prepare(i instance.Instance) (*exec.Cmd, string, error) {
 		if err := steam.SetupNixOS(); err != nil {
 			return nil, "", err
 		}
-	}
-	// update with validate may have replaced the links; LinkTo is a no-op when they're fine.
-	if err := linkData(i, g); err != nil {
-		return nil, "", err
 	}
 	argv, err := g.RenderArgs(i.ArgValues(g))
 	if err != nil {
@@ -436,6 +437,15 @@ func cmdUpdate(e env, args []string) error {
 		return err
 	}
 	if err := autoSnapshot(e, i, "update"); err != nil {
+		return err
+	}
+	// steamcmd validate may write stock files through the config links;
+	// commit first so no config edit is lost from history.
+	repo, err := gitrepo.Init(i.Dir)
+	if err != nil {
+		return err
+	}
+	if _, err := repo.CommitAll("auto: before update"); err != nil {
 		return err
 	}
 	before, _ := steam.BuildID(i.ServerDir(), g.SteamAppID)

@@ -36,7 +36,7 @@ cmd/gsm/            the CLI: dispatch and flag parsing (main.go), one file per c
 internal/home       where $GSM_HOME is
 internal/game       built-in game definitions (Go values), args templates
 internal/instance   instance.toml, name rules, port assignment, instance paths
-internal/fsutil     linking data into the install, atomic writes, safe copies
+internal/fsutil     linking data into the install, atomic writes, safe copies, setting a JSON config key
 internal/proc       launching detached servers, the state file, finding and stopping servers
 internal/steam      steamcmd, build IDs, NixOS steamclient.so setup
 internal/gitrepo    thin wrapper over the git CLI
@@ -73,6 +73,10 @@ Games are compiled into the binary, in `internal/game`. The code that installs, 
 Paths are written with `/` and converted with `filepath.FromSlash`, so one definition works on Windows too. A game supports an OS exactly when it has a launch entry for it.
 
 **Args templates.** Each argument may contain `{name}` placeholders, filled from the game defaults overridden by the instance's settings, plus the port. An unknown placeholder is an error, never an empty string, so a typo can't silently reach the server. The placeholder names (except `port`, which has its own flag) are exactly what `create --set` accepts.
+
+**Config files.** A launch entry names either a config folder (`ConfigDir`, like Palworld) or a single config file (`ConfigFile`) for servers that keep their whole config in one file in the install. That file lives in `config/<file name>`, and the install gets a file symlink to it (`LinkFileTo`, below). If the game sets `ConfigPortKey`, the file is JSON and gsm owns only that top-level key: before every start (and on `create` and `update`) it sets the key to the instance's port, rewriting only the value's bytes so the rest of the file and its formatting stay as they were and config history shows only real changes (`fsutil.SetJSONNumber`). A duplicated key gets every copy set, since parsers differ on which one wins, and a leading UTF-8 BOM is kept. A missing file is created holding just that key, for the server to fill in on its first start; a file that is not a valid JSON object (`null` included) fails with the parse error and is left alone. A hand edit of the port is put back on the next start, since `instance.toml` is the source of the port.
+
+`internal/game/game_test.go` checks every built-in definition (`TestBuiltinGamesAreValid`).
 
 ## Data layout
 
@@ -190,7 +194,7 @@ The ID is 8 random hex characters. The file name starts with the UTC time, so a 
 6. **Make the layout:** `config/`, `saves/`, `server/`, `logs/`.
 7. **Install** with `steamcmd +force_install_dir <abs server/> +login anonymous +app_update <app> validate +quit`, output streamed. steamcmd's exit code is unreliable (it can exit 0 without installing), so gsm also requires `server/steamapps/appmanifest_<app>.acf` with a `"buildid"` line.
 8. **Seed the config:** if `config/` is empty and the install has the game's default config, copy it in. Palworld empties an unedited copy of its defaults on the first start (an edited one survives), so don't re-seed an empty `PalWorldSettings.ini`: Palworld would empty it again on every start.
-9. **Link the data into the install** with `LinkTo` (below).
+9. **Link the data into the install** with `LinkTo` (below), or `LinkFileTo` for a config file, whose port key is set here too.
 10. **Write `instance.toml` and `.gitignore`**, `git init`, and commit `create <name>`.
 
 If any step fails, gsm deletes `instances/<name>` entirely: nothing in it belongs to the user yet, and leaving it would block the name.
@@ -210,6 +214,8 @@ If any step fails, gsm deletes `instances/<name>` entirely: nothing in it belong
 
 The "both have files" case is deliberate: gsm never guesses which copy of a world is the right one. `start` and `update` call `LinkTo` again, since steamcmd `validate` could replace a link; it is a no-op when the links are fine.
 
+`LinkFileTo(path, target)` is the same for one file: nothing at `path` creates the link (`target` may not exist yet; the server creates it through the link), a correct link is kept, a wrong link is replaced, a real file moves to `target` if `target` doesn't exist, and if both exist nothing is touched. It always makes a symlink, first under a temp name (`<path>.gsm-link`) and then renamed into place, so a failed symlink changes nothing and a crash between moving the file and placing the link is finished by the next call. On Windows a file symlink needs Developer Mode or admin rights, and gsm fails with that message rather than falling back to a hard link: gsm's atomic writes and git checkouts replace the file, which would silently split a hard link into two diverging copies.
+
 ## Config history
 
 `internal/gitrepo` runs `git -C <instance dir> --no-pager ...`, capturing output and turning git's stderr into the error. `config diff` first runs `git add -A --intent-to-add`, so new files show up without their content being staged, then `git diff HEAD`. Without a configured git identity, gsm passes `-c user.name=gsm -c user.email=gsm@localhost` for its own commits, so a fresh machine never fails to commit. `start` commits any uncommitted change as `auto: before start`, so every run maps to an exact revision, which goes into the log header and every snapshot.
@@ -222,10 +228,10 @@ The "both have files" case is deliberate: gsm never guesses which copy of a worl
 
 1. **Already running?** (the check below) Print `already running` and move on, so `start --all` is safe to repeat.
 2. **Check the platform:** a game without a launch entry for this OS fails with `<game> has no server for <os>`.
-3. **Commit the config** (`auto: before start`).
-4. **NixOS preparation:** refuse a `$GSM_HOME` under `/tmp`, because `steam-run` gives the server a fresh, empty `/tmp`; copy `steamclient.so` into `~/.steam/sdk64/`. That folder is often a symlink to the folder the file comes from, so `CopyFile` compares device and inode first and skips a copy onto itself rather than replacing Steam's own file with a copy of itself.
-5. **Re-check the links** with `LinkTo`.
-6. **Find the launcher** in `server/`. If it is missing (a deleted or failed install), fail with `server not installed (...); run: gsm update <name>`. The config commit from step 3 stays.
+3. **Re-check the links** with `LinkTo` (or `LinkFileTo`) and set a config file's port key, before the commit so it records the port the server runs with.
+4. **Commit the config** (`auto: before start`).
+5. **NixOS preparation:** refuse a `$GSM_HOME` under `/tmp`, because `steam-run` gives the server a fresh, empty `/tmp`; copy `steamclient.so` into `~/.steam/sdk64/`. That folder is often a symlink to the folder the file comes from, so `CopyFile` compares device and inode first and skips a copy onto itself rather than replacing Steam's own file with a copy of itself.
+6. **Find the launcher** in `server/`. If it is missing (a deleted or failed install), fail with `server not installed (...); run: gsm update <name>`. The config commit from step 4 stays.
 7. **Build the command line** from the args template. On NixOS it is prefixed with `steam-run`. The working directory is `server/`.
 8. **Open the log** (`logs/server.log`, appended) and write a header: `=== gsm start <RFC 3339 time>, config <rev> ===`.
 9. **Launch detached** (`proc.Launch`): a new session (`setsid`), so closing the terminal sends no SIGHUP and the server's PID is also its process group ID; stdin from the null device, stdout and stderr to the log; read the start time; write `state.json` atomically.
@@ -339,7 +345,7 @@ The link in `server/` points at the path `instances/<name>/saves`, so after the 
 
 ## Updates
 
-`update` refuses while the server runs, then: a snapshot with trigger `update` (recording the old build), steamcmd with `validate` on `server/`, `LinkTo` on both links (it stops if steamcmd replaced a link with a real folder holding files), and the build ID read before and after to report `already up to date` or the change.
+`update` refuses while the server runs, then: a snapshot with trigger `update` (recording the old build), a config commit (`auto: before update`, since `validate` may write stock files through the config link), steamcmd with `validate` on `server/`, `LinkTo` (or `LinkFileTo`) on both links (it stops if steamcmd replaced a link with a real folder holding files), and the build ID read before and after to report `already up to date` or the change.
 
 ## Addons
 
@@ -354,7 +360,7 @@ podman run -d --rm --name gsm-<instance>-playit --network=host \
 
 ## Atomic writes
 
-`WriteAtomic` (for `state.json`, `instance.toml`, `.gitignore`, snapshot records and `store/format`), `CopyFile` (the seeded config, `steamclient.so`) and the object writer follow one pattern:
+`WriteAtomic` (for `state.json`, `instance.toml`, `.gitignore`, snapshot records, `store/format` and a config file's port key), `CopyFile` (the seeded config, `steamclient.so`) and the object writer follow one pattern:
 
 1. create a temp file in the same folder as the destination, so the rename stays on one filesystem
 2. write, then `fsync`
