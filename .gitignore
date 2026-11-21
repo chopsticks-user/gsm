@@ -13,7 +13,7 @@
 # Dev shell state (GOPATH, module and build caches)
 /.go/
 
-# Nix and direnv (result links appear wherever nix build runs, e.g. flake/)
+# Nix and direnv (result links appear wherever nix build runs)
 result
 result-*
 /.direnv/

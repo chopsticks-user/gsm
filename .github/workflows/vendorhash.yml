@@ -1,0 +1,38 @@
+name: vendorHash
+
+# Dependabot updates go.mod and go.sum but not the flake's vendorHash, so its
+# Go module PRs would fail the Nix package build. This recomputes the hash and
+# pushes it to the PR branch.
+#
+# pull_request_target, because a run triggered by Dependabot gets a read-only
+# token. It checks out the PR branch but runs only this repo's script on
+# Dependabot's own PRs. The push uses VENDORHASH_TOKEN, a fine-grained token
+# with Contents: write on this repo, stored as a Dependabot secret (the only
+# secrets such runs can read): a push made with GITHUB_TOKEN wouldn't trigger
+# CI, and the PR's required checks would never run on the fix.
+on:
+  pull_request_target:
+    paths: [go.mod, go.sum]
+
+permissions: {}
+
+jobs:
+  update:
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          token: ${{ secrets.VENDORHASH_TOKEN }}
+      - uses: cachix/install-nix-action@v31
+      - name: Recompute vendorHash
+        run: scripts/update-vendorhash.sh
+      - name: Push the fix
+        run: |
+          git diff --quiet flake.nix && exit 0
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Update vendorHash' flake.nix
+          git push

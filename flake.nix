@@ -8,6 +8,7 @@
 
   outputs =
     {
+      self,
       nixpkgs,
       flake-utils,
       ...
@@ -20,9 +21,35 @@
           exec = "code";
           icon = "vscode";
         };
-        flakeDir = "flake";
         desktopPath = "$HOME/.local/share/applications";
       };
+
+      # gsm built with a given pkgs, so the overlay uses the consumer's nixpkgs.
+      version = self.shortRev or self.dirtyShortRev or "dev";
+      gsmFor =
+        pkgs:
+        pkgs.buildGoModule {
+          pname = "gsm";
+          inherit version;
+          src = self;
+          # Recomputed by scripts/update-vendorhash.sh when go.mod or go.sum change.
+          vendorHash = "sha256-X1Jc68JkeAxNBY3aM8ByCd3zjIlTRMVrU2QA1N6noHM=";
+          subPackages = [ "cmd/gsm" ];
+          env.CGO_ENABLED = "0";
+          ldflags = [
+            "-s"
+            "-w"
+            "-X main.version=${version}"
+          ];
+          # The tests need git and real processes; verify runs them, not the sandbox.
+          doCheck = false;
+          meta = {
+            description = "CLI for managing self-hosted game servers";
+            homepage = "https://github.com/chopsticks-user/gsm";
+            license = pkgs.lib.licenses.mit;
+            mainProgram = "gsm";
+          };
+        };
     in
     flake-utils.lib.eachDefaultSystem (
       system:
@@ -30,6 +57,8 @@
         pkgs = import nixpkgs { inherit system; };
       in
       {
+        packages.default = gsmFor pkgs;
+
         devShells.default = pkgs.mkShell {
           # git, steamcmd, steam-run and podman come from the host, not the shell
           packages = with pkgs; [
@@ -60,7 +89,7 @@
             install =
               let
                 developCmdArgumentPath =
-                  "path:$PROJECT_PATH" + nixpkgs.lib.optionalString (meta.flakeDir != "") "/${meta.flakeDir}";
+                  "$PROJECT_PATH"; # git-aware: copies tracked files only, not .go/
               in
               {
                 type = "app";
@@ -90,5 +119,8 @@
             };
           };
       }
-    );
+    )
+    // {
+      overlays.default = final: _prev: { gsm = gsmFor final; };
+    };
 }

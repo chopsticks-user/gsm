@@ -4,7 +4,7 @@
 # 7.6 GB per instance, two instances) in a throwaway home, deleted at the
 # end, also on failure. Run it before a release:
 #
-#   nix develop path:./flake -c scripts/smoke-enshrouded.sh [--hold]
+#   nix develop -c scripts/smoke-enshrouded.sh [--hold]
 #
 # --hold pauses while the server runs, so you can connect with a game client.
 # Needs steamcmd (and steam-run plus steamclient.so on NixOS, for steamcmd),

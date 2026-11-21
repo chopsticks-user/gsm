@@ -35,13 +35,14 @@ Each fact lives in one doc. The rules below are short forms of decisions in thos
 
 Go is not installed globally; use the flake's dev shell (details in `docs/development.md`). The `justfile` wraps these as recipes (`just` lists them; the table is in `docs/development.md`, Common commands):
 
-- Build (all output goes to `build/`): `nix develop path:./flake -c go build -o build/ ./cmd/gsm`
-- Release binaries into `build/release/`: `nix develop path:./flake -c scripts/release-build.sh v1.2.3`
-- Test: `nix develop path:./flake -c go test -race ./...`
-- Verify (scripts syntax, gofmt, go vet for Linux/Windows/macOS, race tests including the end-to-end test; CI runs the same): `nix develop path:./flake -c scripts/verify.sh`
-- Smoke tests against the real servers (run before a release): `nix develop path:./flake -c scripts/smoke-palworld.sh` (5 GB download) and `nix develop path:./flake -c scripts/smoke-enshrouded.sh` (2 x 7.6 GB, needs wine)
-- Vulnerability scan (CI runs it for Linux, Windows and macOS; needs the network): `nix develop path:./flake -c govulncheck -test ./...`
-- A stdlib vulnerability or a Dependabot `go` bump that fails CI is fixed by `nix flake update --flake path:./flake` (Dependabot doesn't update `flake/flake.lock`)
+- Build (all output goes to `build/`): `nix develop -c go build -o build/ ./cmd/gsm`; install: `just install [dir]`; Nix package: `nix build .#default`
+- Release binaries into `build/release/`: `nix develop -c scripts/release-build.sh v1.2.3`
+- Test: `nix develop -c go test -race ./...`
+- Verify (scripts syntax, gofmt, go vet for Linux/Windows/macOS, race tests including the end-to-end test; CI runs the same): `nix develop -c scripts/verify.sh`
+- Smoke tests against the real servers (run before a release): `nix develop -c scripts/smoke-palworld.sh` (5 GB download) and `nix develop -c scripts/smoke-enshrouded.sh` (2 x 7.6 GB, needs wine)
+- Vulnerability scan (CI runs it for Linux, Windows and macOS; needs the network): `nix develop -c govulncheck -test ./...`
+- After changing Go dependencies, run `scripts/update-vendorhash.sh` (the Nix package's `vendorHash`; CI fixes it on Dependabot PRs)
+- A stdlib vulnerability or a Dependabot `go` bump that fails CI is fixed by `nix flake update` (Dependabot doesn't update `flake.lock`)
 
 `git`, `steamcmd`, `steam-run` and `podman` are on the dev host.
 
@@ -53,5 +54,5 @@ Labels in use: `type:bug`, `type:feature`, `type:chore`, `type:docs` (one per is
 
 ## taskie
 
-verify: nix develop path:./flake -c scripts/verify.sh
+verify: nix develop -c scripts/verify.sh
 setup: none
