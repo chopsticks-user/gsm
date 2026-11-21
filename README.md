@@ -41,7 +41,27 @@ gsm version
 
 gsm needs `git` and `steamcmd` on the machine (and `steam-run` on NixOS, and `wine` for a game whose server runs only on Windows); `gsm doctor` checks.
 
-To build from source, see [docs/development.md](docs/development.md).
+**From a checkout** (needs Go, or Nix for the dev shell, and [just](https://github.com/casey/just)):
+
+```
+just install                 # builds gsm into ~/.local/bin
+just install /usr/local/bin  # or another directory
+```
+
+**With Nix**, the flake provides `packages.<system>.default` and an overlay that adds `gsm` to `pkgs`:
+
+```nix
+# flake.nix of your system config
+inputs.gsm.url = "github:chopsticks-user/gsm";
+# then, in a NixOS or Home Manager module
+nixpkgs.overlays = [ inputs.gsm.overlays.default ];
+environment.systemPackages = [ pkgs.gsm ];  # or home.packages
+```
+
+The overlay adds the flake's own build (with its pinned nixpkgs), so it works whatever Go your nixpkgs has. `nix run github:chopsticks-user/gsm -- version` tries it without installing.
+
+To develop gsm, see [docs/development.md](docs/development.md).
+
 
 ## Documentation
 

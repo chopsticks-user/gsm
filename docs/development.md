@@ -7,15 +7,15 @@ How to build, test and change gsm. For how the code is organized, see [architect
 The repo ships a Nix flake with the toolchain: Go, gopls, gcc (the race detector needs cgo), govulncheck and just.
 
 ```
-nix develop path:./flake            # a shell with the toolchain
-nix develop path:./flake -c <cmd>   # one command inside it
+nix develop            # a shell with the toolchain
+nix develop -c <cmd>   # one command inside it
 ```
 
-`path:` makes Nix copy only `flake/` into the store, not the whole repo, and lets it see the flake files before they're committed.
+The flake is at the repo root. Nix copies only the files git tracks (never the `.go/` cache), so `git add` a new file before the flake, or the package build, can see it.
 
 Entered from inside the repo, the shell keeps Go's module and build caches in a gitignored `.go/` at the repo root instead of `~/go` and `~/.cache/go-build`, and sets `GOFLAGS=-modcacherw` so `.go/` can be deleted normally. Entered from outside a git repo, it warns and leaves Go's defaults.
 
-`nix run path:./flake#install` adds a desktop entry, "VS Code (gsm)", that opens the repo in VS Code inside the shell, so gopls and the Go extension see the toolchain. `nix run path:./flake#uninstall` removes it. The entry is written to `~/.local/share/applications`; on an impermanent home it survives a reboot only if that folder is persisted. Close every VS Code window before using it, since `code` hands the folder to a running instance, which keeps its old environment.
+`nix run .#install` adds a desktop entry, "VS Code (gsm)", that opens the repo in VS Code inside the shell, so gopls and the Go extension see the toolchain. `nix run .#uninstall` removes it. The entry is written to `~/.local/share/applications`; on an impermanent home it survives a reboot only if that folder is persisted. Close every VS Code window before using it, since `code` hands the folder to a running instance, which keeps its old environment.
 
 Without Nix, any Go matching the `go` line in `go.mod` works; you'll also need gcc for `-race`.
 
@@ -23,11 +23,12 @@ Tools gsm calls at runtime come from the host, not the flake: `git`, `steamcmd`,
 
 ## Common commands
 
-The `justfile` has recipes for the commands below; inside the dev shell run `just <recipe>`, or from outside it `nix develop path:./flake -c just <recipe>`. `just` alone lists them.
+The `justfile` has recipes for the commands below; inside the dev shell run `just <recipe>`, or from outside it `nix develop -c just <recipe>`. `just` alone lists them.
 
 | Recipe | Runs |
 |---|---|
 | `just build` | `go build -o build/ ./cmd/gsm` |
+| `just install [dir]` | builds gsm with its `git describe` version into `dir` (default `~/.local/bin`) |
 | `just test` | `go test -race ./...` |
 | `just verify` | `scripts/verify.sh` (what CI runs) |
 | `just fmt` | `go fmt ./...` |
@@ -43,9 +44,9 @@ The sections below give the full commands and what each one does.
 ## Build
 
 ```
-nix develop path:./flake -c go build -o build/ ./cmd/gsm
-nix develop path:./flake -c env GOOS=windows go build -o build/ ./cmd/gsm
-nix develop path:./flake -c env GOOS=darwin GOARCH=arm64 go build -o build/gsm-darwin-arm64 ./cmd/gsm
+nix develop -c go build -o build/ ./cmd/gsm
+nix develop -c env GOOS=windows go build -o build/ ./cmd/gsm
+nix develop -c env GOOS=darwin GOARCH=arm64 go build -o build/gsm-darwin-arm64 ./cmd/gsm
 ```
 
 All build output goes to the gitignored `build/`. Release binaries for every OS and CPU go to `build/release/` (see [Releasing](#releasing)). `gsm version` prints the version, the commit and the Go version; a build without a release version says `dev`, and a build from uncommitted changes marks the commit `-dirty`.
@@ -55,7 +56,7 @@ All build output goes to the gitignored `build/`. Release binaries for every OS 
 One command runs everything a change must pass:
 
 ```
-nix develop path:./flake -c scripts/verify.sh
+nix develop -c scripts/verify.sh
 ```
 
 It syntax-checks the shell scripts in `scripts/`, checks `gofmt` on every package, runs `go vet` for Linux, Windows and macOS, and runs `go test -race ./...`, which includes the end-to-end test. CI runs the same command. Run it before and after a change, and before merging.
@@ -78,8 +79,8 @@ On NixOS, keep test data out of `/tmp` when a test starts a server through `stea
 ### Smoke test against the real server
 
 ```
-nix develop path:./flake -c scripts/smoke-palworld.sh [--hold]
-nix develop path:./flake -c scripts/smoke-enshrouded.sh [--hold]
+nix develop -c scripts/smoke-palworld.sh [--hold]
+nix develop -c scripts/smoke-enshrouded.sh [--hold]
 ```
 
 Repeats the lifecycle against the real Palworld dedicated server: it downloads it (about 5 GB) into a throwaway home under `~/.cache`, edits `ServerName` in the seeded settings, waits for the server to listen and save, checks the edit survived, snapshots, stops, restores over a corrupted `Level.sav` and checks the hash, starts again, and updates. The throwaway home is deleted at the end, also on failure. `--hold` pauses while the server runs, so you can connect with a game client. It needs steamcmd (plus `steam-run` and `steamclient.so` on NixOS) and a free UDP port 8211, so it doesn't run in CI; run it before a release.
@@ -90,7 +91,7 @@ Repeats the lifecycle against the real Palworld dedicated server: it downloads i
 
 `.github/workflows/ci.yml` runs verify through the flake on `ubuntu-latest` for every pull request and every push to `main`, the same command as locally. Alongside it, the `test` job runs `go test ./...` on `windows-latest` and `macos-latest` with the Go from `go.mod` (`actions/setup-go`), since the flake doesn't run on Windows. The race detector and the end-to-end test stay in the Linux job. Tests that need Unix signals live in `*_unix_test.go`; a fake server that must survive a stop request catches the signal and drops it, since `signal.Ignore` on Windows lets Ctrl+Break end the process.
 
-After verify, the Linux job runs `govulncheck -test ./...` for Linux, Windows and macOS, which fails on a known vulnerability in code gsm actually calls, tests included (one in a dependency function gsm never calls is reported but doesn't fail). It needs the network for the vulnerability database, so it's a CI step rather than part of verify. CI also runs weekly on a schedule, so a vulnerability published against unchanged code shows up without a pull request. Run it locally with `nix develop path:./flake -c govulncheck -test ./...`.
+After verify, the Linux job runs `govulncheck -test ./...` for Linux, Windows and macOS, which fails on a known vulnerability in code gsm actually calls, tests included (one in a dependency function gsm never calls is reported but doesn't fail). It needs the network for the vulnerability database, so it's a CI step rather than part of verify. CI also runs weekly on a schedule, so a vulnerability published against unchanged code shows up without a pull request. Run it locally with `nix develop -c govulncheck -test ./...`.
 
 Dependabot (`.github/dependabot.yml`) opens weekly pull requests for Go module and GitHub Actions updates, one grouped PR per ecosystem, which CI checks like any other.
 
@@ -101,7 +102,13 @@ Two things nothing updates automatically, and both have the same fix:
 - **A vulnerability in Go's standard library.** govulncheck checks the standard library of the Go the flake provides, so a stdlib advisory fails CI on every PR, even ones that touch no Go code, until a newer Go is in the flake.
 - **A Dependabot PR that raises `go.mod`'s `go` line** past the flake's Go fails, since the flake's Go doesn't download newer toolchains.
 
-The fix is updating the flake inputs (`flake/flake.lock`), which Dependabot doesn't support: `nix flake update --flake path:./flake`, then verify and open a PR.
+The fix is updating the flake inputs (`flake.lock`), which Dependabot doesn't support: `nix flake update`, then verify and open a PR.
+
+### Nix package
+
+`flake.nix` also builds gsm as `packages.<system>.default` (`buildGoModule`, version from the commit, tests left to verify) and exposes `overlays.default`, which adds that same build as `gsm` to a consumer's `pkgs` (built with this flake's nixpkgs, so `vendorHash` always matches its Go). `gsm version` from it shows `dev` and the commit. CI builds it on every PR. `vendorHash` is the hash of the Go module dependencies, so it changes whenever `go.mod` or `go.sum` do: run `scripts/update-vendorhash.sh` after changing dependencies, and commit the result.
+
+Dependabot's Go module PRs get the fix automatically: `.github/workflows/vendorhash.yml` runs the script on them and pushes the new hash. It pushes with `VENDORHASH_TOKEN`, a fine-grained personal access token (or GitHub App token) limited to this repository with Contents: read and write, stored as an **Actions** secret (the workflow uses `pull_request_target`, which runs in the base branch's context). The workflow runs the base branch's copy of the script on the PR's checkout and hands the token only to the final push. The default `GITHUB_TOKEN` won't do: its pushes don't trigger CI, so the PR's required checks would never run on the fix. Once it has pushed, Dependabot stops rebasing that PR on its own.
 
 ## Adding a game
 
@@ -144,7 +151,7 @@ Patches come from a release branch, not `main`, because `main` already carries u
 What a version number means is in [Versioning](#versioning). To cut a release:
 
 1. For a minor release: every issue in its [milestone](https://github.com/chopsticks-user/gsm/milestones) is closed, its exit criteria in [roadmap.md](roadmap.md) hold, and CI is green on `main`. For a patch: the fixes are cherry-picked onto `release-X.Y` (see [Versioning](#versioning)).
-2. Run the smoke tests with a game client: `nix develop path:./flake -c scripts/smoke-palworld.sh --hold` and `nix develop path:./flake -c scripts/smoke-enshrouded.sh --hold`, and connect to each server (UDP 8211, UDP 15637) while it holds.
+2. Run the smoke tests with a game client: `nix develop -c scripts/smoke-palworld.sh --hold` and `nix develop -c scripts/smoke-enshrouded.sh --hold`, and connect to each server (UDP 8211, UDP 15637) while it holds.
 3. In `CHANGELOG.md`, rename `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD`, start a new empty `## [Unreleased]` above it, update the links at the bottom, and merge that through a pull request. For a patch, the section goes on the release branch first (steps in [Versioning](#versioning)). A pre-release (`vX.Y.Z-rc.N`) can skip this: without a section of its own, its notes come from `[Unreleased]`.
 4. Tag the merge commit on `main` (or on `release-X.Y` for a patch) and push the tag:
    ```
@@ -156,7 +163,7 @@ What a version number means is in [Versioning](#versioning). To cut a release:
 
 If the workflow fails, fix the problem on `main` (and, for a patch, cherry-pick the fix onto `release-X.Y`), delete any release it left behind (`gh release delete vX.Y.Z`, in case an asset upload failed after the release was created), delete the tag (`git push --delete origin vX.Y.Z`, `git tag -d vX.Y.Z`), and tag again. The workflow also refuses a tag that's neither on `main` nor a patch on its own `release-X.Y` branch.
 
-To try a release build locally: `nix develop path:./flake -c scripts/release-build.sh v0.0.0-test`.
+To try a release build locally: `nix develop -c scripts/release-build.sh v0.0.0-test`.
 
 ## Workflow
 

@@ -37,9 +37,9 @@ jobs:
           echo "::error::$GITHUB_REF_NAME is neither on main nor a patch on its release-X.Y branch"; exit 1
       - uses: cachix/install-nix-action@v31
       - name: Verify
-        run: nix develop path:./flake -c scripts/verify.sh
+        run: nix develop -c scripts/verify.sh
       - name: Build
-        run: nix develop path:./flake -c scripts/release-build.sh "$GITHUB_REF_NAME"
+        run: nix develop -c scripts/release-build.sh "$GITHUB_REF_NAME"
       - name: Release notes
         run: scripts/release-notes.sh "$GITHUB_REF_NAME" > build/release-notes.md
       # Everything is built before anything is published. gh release create

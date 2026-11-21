@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Formatting, vet and all tests. Run inside the dev shell: nix develop path:./flake -c scripts/verify.sh
+# Formatting, vet and all tests. Run inside the dev shell: nix develop -c scripts/verify.sh
 set -euo pipefail
 cd "$(dirname "$0")/.."
 

@@ -7,11 +7,11 @@ import (
 )
 
 func TestVersionString(t *testing.T) {
-	orig := version
-	version = "v1.2.3"
-	t.Cleanup(func() { version = orig })
+	origV, origC := version, commit
+	version, commit = "v1.2.3", "abc1234"
+	t.Cleanup(func() { version, commit = origV, origC })
 	got := versionString()
-	if !strings.HasPrefix(got, "gsm v1.2.3 (commit ") || !strings.HasSuffix(got, ", "+runtime.Version()+")") {
+	if !strings.HasPrefix(got, "gsm v1.2.3 (commit abc1234, ") || !strings.HasSuffix(got, ", "+runtime.Version()+")") {
 		t.Fatalf("versionString() = %q", got)
 	}
 }

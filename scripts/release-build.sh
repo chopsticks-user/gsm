@@ -2,7 +2,7 @@
 # Builds release binaries for every supported OS and CPU into build/release/,
 # with the version baked in, plus a SHA256SUMS file.
 #
-#   nix develop path:./flake -c scripts/release-build.sh v0.1.0
+#   nix develop -c scripts/release-build.sh v0.1.0
 set -euo pipefail
 cd "$(dirname "$0")/.."
 

@@ -1,5 +1,5 @@
 # Weekly update PRs for Go modules and GitHub Actions, one grouped PR per
-# ecosystem. The Nix flake inputs (flake/flake.lock) aren't covered:
+# ecosystem. The Nix flake inputs (flake.lock) aren't covered:
 # Dependabot doesn't support Nix (see docs/development.md, CI).
 version: 2
 updates:

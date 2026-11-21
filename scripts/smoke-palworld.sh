@@ -3,7 +3,7 @@
 # lifecycle with a real steamcmd download (about 5 GB) in a throwaway home,
 # deleted at the end, also on failure. Run it before a release:
 #
-#   nix develop path:./flake -c scripts/smoke-palworld.sh [--hold]
+#   nix develop -c scripts/smoke-palworld.sh [--hold]
 #
 # --hold pauses while the server runs, so you can connect with a game client.
 # Needs steamcmd (and steam-run plus steamclient.so on NixOS), git, and a free

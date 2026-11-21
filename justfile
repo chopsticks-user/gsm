@@ -1,5 +1,5 @@
-# Common commands. Run inside the dev shell (`nix develop path:./flake`), or
-# prefix any recipe: `nix develop path:./flake -c just <recipe>`. Like the
+# Common commands. Run inside the dev shell (`nix develop`), or
+# prefix any recipe: `nix develop -c just <recipe>`. Like the
 # dev shell, this needs a Unix host.
 
 # Pass recipe arguments to the shell as "$@", unsplit and unexpanded.
@@ -8,6 +8,12 @@ set positional-arguments
 # List the recipes
 default:
     @just --justfile {{justfile()}} --list
+
+# Build gsm and install it into dir (default ~/.local/bin). On NixOS, use the flake's package or overlay instead
+install dir="$HOME/.local/bin":
+    mkdir -p "{{dir}}"
+    go build -ldflags "-X main.version=$(git describe --tags --always --dirty 2>/dev/null || echo dev)" -o "{{dir}}/gsm" ./cmd/gsm
+    "{{dir}}/gsm" version
 
 # Build gsm into build/
 build:
