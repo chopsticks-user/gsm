@@ -38,15 +38,13 @@ func Alive(st State) bool {
 
 // ServerAlive reports whether a server launched by Launch is still running.
 // The launched process may exit while the server it started keeps running
-// (steam-run does this), so a surviving process group counts too. That is
-// safe because the OS never reuses a PID while it still names a live process
-// group, so a group with this ID can only be ours.
+// (steam-run does this), so a surviving process group (a Job Object on
+// Windows) counts too; groupAlive makes sure it is still this server's.
 func ServerAlive(st State) bool {
-	t, err := StartTime(st.PID)
-	if err == nil {
-		return t == st.Start // a different start time means the PID was reused
+	if t, err := StartTime(st.PID); err == nil && t == st.Start {
+		return true
 	}
-	return groupAlive(st.PID)
+	return groupAlive(st)
 }
 
 // Running reads the state file and reports whether that instance's server
@@ -75,16 +73,16 @@ func Launch(c *exec.Cmd, stateFile, instance string) (State, error) {
 	if err := c.Start(); err != nil {
 		return State{}, err
 	}
-	if err := afterStart(c.Process.Pid); err != nil {
-		c.Process.Kill()
-		return State{}, err
-	}
 	t, err := StartTime(c.Process.Pid)
 	if err != nil {
 		c.Process.Kill()
 		return State{}, err
 	}
 	st := State{Format: Format, PID: c.Process.Pid, Start: t, Instance: instance}
+	if err := afterStart(st); err != nil {
+		c.Process.Kill()
+		return State{}, err
+	}
 	b, _ := json.Marshal(st)
 	if err := fsutil.WriteAtomic(stateFile, b, 0o644); err != nil {
 		// Don't leave a server gsm can't find. SIGTERM, not the game's signal: the
@@ -110,7 +108,7 @@ func Stop(st State, sig syscall.Signal, timeout time.Duration) (killed bool, war
 	if waitGone(st, timeout) {
 		return false, warning, nil
 	}
-	if err := kill(st.PID); err != nil && ServerAlive(st) {
+	if err := kill(st); err != nil && ServerAlive(st) {
 		return true, warning, err
 	}
 	if !waitGone(st, 10*time.Second) {

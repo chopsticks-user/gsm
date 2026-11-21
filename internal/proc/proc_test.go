@@ -80,7 +80,7 @@ func launch(t *testing.T, mode, instance string, extraEnv ...string) (State, str
 	}
 	// Reap the child, as init does for real servers after gsm exits.
 	go c.Wait()
-	t.Cleanup(func() { kill(st.PID) })
+	t.Cleanup(func() { kill(st) })
 	time.Sleep(300 * time.Millisecond) // let it install its signal handlers
 	return st, stateFile
 }
@@ -163,7 +163,7 @@ func TestStopForcesWhenRequestFails(t *testing.T) {
 // A request that fails because the server is already gone is a clean stop.
 func TestStopRequestFailsServerAlreadyGone(t *testing.T) {
 	st, _ := launch(t, "obedient", "main")
-	kill(st.PID)
+	kill(st)
 	if !waitGone(st, 5*time.Second) {
 		t.Fatal("fake server didn't die")
 	}
@@ -221,4 +221,26 @@ func TestKillReachesOrphanedGrandchild(t *testing.T) {
 		time.Sleep(50 * time.Millisecond)
 	}
 	t.Fatal("orphaned grandchild survived the force stop")
+}
+
+// Like steam-run: the launched process exits while its child keeps running.
+// The server must still count as running, and Stop must still end it.
+func TestLeaderExitsChildKeepsRunning(t *testing.T) {
+	pidFile := filepath.Join(t.TempDir(), "child")
+	st, sf := launch(t, "wrapper", "main", "GSM_CHILD_PID_FILE="+pidFile, "GSM_WRAPPER_EXITS=1")
+	for i := 0; i < 100 && Alive(st); i++ {
+		time.Sleep(50 * time.Millisecond)
+	}
+	if Alive(st) {
+		t.Fatal("wrapper should have exited")
+	}
+	if _, ok, _ := Running(sf, "main"); !ok {
+		t.Fatal("server reported stopped while its child runs")
+	}
+	if _, _, err := Stop(st, syscall.SIGTERM, time.Second); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, _ := Running(sf, "main"); ok {
+		t.Fatal("still running after Stop")
+	}
 }

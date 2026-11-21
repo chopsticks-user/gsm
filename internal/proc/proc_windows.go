@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"strconv"
 	"syscall"
+	"time"
 	"unsafe"
 )
 
@@ -18,18 +19,15 @@ const (
 	ctrlBreakEvent   = 1
 	queryLimitedInfo = 0x1000
 	helperArg        = "__gsm-ctrl-break"
+	holderArg        = "__gsm-job-holder"
 
 	createSuspended      = 0x4
 	processTerminate     = 0x0001
-	processDupHandle     = 0x0040
 	processSetQuota      = 0x0100
 	processSuspendResume = 0x0800
-	jobAllAccess         = 0x1F001F
 	jobQuery             = 0x0004
 	jobTerminate         = 0x0008
 	jobBasicAccounting   = 1 // JobObjectBasicAccountingInformation
-	errorAlreadyExists   = 183
-	duplicateSameAccess  = 2
 )
 
 var (
@@ -73,8 +71,12 @@ func terminate(pid int, _ syscall.Signal) error {
 }
 
 // HandleHelper must run first in main (and TestMain). When gsm was started
-// as the Ctrl+Break helper, it does that job and exits.
+// as the Ctrl+Break helper, it does that job and exits; as a job holder (see
+// joinJob), it keeps the job until the job empties, then exits.
 func HandleHelper() {
+	if len(os.Args) == 3 && os.Args[1] == holderArg {
+		holdJob(os.Args[2])
+	}
 	if len(os.Args) != 3 || os.Args[1] != helperArg {
 		return
 	}
@@ -118,77 +120,104 @@ func StartTime(pid int) (string, error) {
 
 // A server's Job Object holds every process it starts, orphans included, so
 // kill and groupAlive reach all of them. gsm has no daemon, so a later gsm
-// finds the job by a name derived from the server's PID. Names are per login
-// session (Local\): from another session, or for a server started without a
-// job, gsm falls back to taskkill.
-func jobName(pid int) *uint16 {
-	p, _ := syscall.UTF16PtrFromString(`Local\gsm-server-` + strconv.Itoa(pid))
+// finds the job by a name made of the server's PID and start time, which
+// can't collide after PID reuse. Names are per login session (Local\): from
+// another session, or for a server started without a job, gsm falls back to
+// taskkill.
+func jobName(st State) *uint16 {
+	p, _ := syscall.UTF16PtrFromString(`Local\gsm-server-` + strconv.Itoa(st.PID) + "-" + st.Start)
 	return p
 }
 
 // afterStart puts the suspended server into its job, so no child can start
 // outside it, then resumes it. The job is best effort; resuming is not.
-func afterStart(pid int) error {
-	ph, err := syscall.OpenProcess(processTerminate|processDupHandle|processSetQuota|processSuspendResume, false, uint32(pid))
+func afterStart(st State) error {
+	ph, err := syscall.OpenProcess(processTerminate|processSetQuota|processSuspendResume, false, uint32(st.PID))
 	if err != nil {
 		return err
 	}
 	defer syscall.CloseHandle(ph)
-	joinJob(pid, ph)
+	joinJob(st, ph)
 	if r, _, _ := procNtResumeProcess.Call(uintptr(ph)); r != 0 {
 		return fmt.Errorf("resume server: NTSTATUS %#x", r)
 	}
 	return nil
 }
 
-func joinJob(pid int, ph syscall.Handle) {
-	job, _, err := procCreateJobObject.Call(0, uintptr(unsafe.Pointer(jobName(pid))))
+func joinJob(st State, ph syscall.Handle) {
+	sa := syscall.SecurityAttributes{InheritHandle: 1} // so the holder can inherit it
+	sa.Length = uint32(unsafe.Sizeof(sa))
+	job, _, _ := procCreateJobObject.Call(uintptr(unsafe.Pointer(&sa)), uintptr(unsafe.Pointer(jobName(st))))
 	if job == 0 {
 		return
 	}
 	defer syscall.CloseHandle(syscall.Handle(job))
-	if err == syscall.Errno(errorAlreadyExists) {
-		return // left by this PID's previous owner; never mix two servers in one job
-	}
 	if r, _, _ := procAssignToJob.Call(job, uintptr(ph)); r == 0 {
 		return
 	}
-	// A name lasts only while a handle is open, so the server holds one
-	// (inheritable, so children that inherit handles keep the name alive too).
-	var dup syscall.Handle
-	self, _ := syscall.GetCurrentProcess()
-	syscall.DuplicateHandle(self, syscall.Handle(job), ph, &dup, 0, true, duplicateSameAccess)
+	// A name lasts only while a handle is open, and the launched process may
+	// exit before its children, so a holder outside the job keeps one open
+	// until the job's last process exits (see HandleHelper).
+	exe, err := os.Executable()
+	if err != nil {
+		return
+	}
+	h := exec.Command(exe, holderArg, strconv.FormatUint(uint64(job), 10))
+	h.SysProcAttr = &syscall.SysProcAttr{
+		CreationFlags:              syscall.CREATE_NEW_PROCESS_GROUP | createNoWindow,
+		AdditionalInheritedHandles: []syscall.Handle{syscall.Handle(job)},
+	}
+	if h.Start() == nil {
+		h.Process.Release()
+	}
 }
 
-func openJob(pid int, access uint32) syscall.Handle {
-	h, _, _ := procOpenJobObject.Call(uintptr(access), 0, uintptr(unsafe.Pointer(jobName(pid))))
+// holdJob is the holder: it keeps the inherited job handle, and so the job's
+// name, until the job has no live process.
+func holdJob(arg string) {
+	h, err := strconv.ParseUint(arg, 10, 64)
+	if err != nil {
+		os.Exit(2)
+	}
+	for jobActive(syscall.Handle(h)) {
+		time.Sleep(2 * time.Second)
+	}
+	os.Exit(0)
+}
+
+func openJob(st State, access uint32) syscall.Handle {
+	h, _, _ := procOpenJobObject.Call(uintptr(access), 0, uintptr(unsafe.Pointer(jobName(st))))
 	return syscall.Handle(h)
 }
 
-// kill terminates the server's job, or falls back to taskkill /T, which
-// walks the tree by parent PID and so misses orphaned children.
-func kill(pid int) error {
-	if job := openJob(pid, jobTerminate); job != 0 {
-		defer syscall.CloseHandle(job)
-		if r, _, _ := procTerminateJob.Call(uintptr(job), 1); r != 0 {
-			return nil
-		}
-	}
-	return exec.Command("taskkill", "/T", "/F", "/PID", strconv.Itoa(pid)).Run()
-}
-
-// groupAlive reports whether the server's job still has a live process.
-// Without a findable job it reports false; the start time check covers the parent.
-func groupAlive(pid int) bool {
-	job := openJob(pid, jobQuery)
-	if job == 0 {
-		return false
-	}
-	defer syscall.CloseHandle(job)
+func jobActive(job syscall.Handle) bool {
 	var info struct {
 		TotalUserTime, TotalKernelTime, PeriodUserTime, PeriodKernelTime           int64
 		TotalPageFaults, TotalProcesses, ActiveProcesses, TotalTerminatedProcesses uint32
 	}
 	r, _, _ := procQueryJob.Call(uintptr(job), jobBasicAccounting, uintptr(unsafe.Pointer(&info)), unsafe.Sizeof(info), 0)
 	return r != 0 && info.ActiveProcesses > 0
+}
+
+// kill terminates the server's job, or falls back to taskkill /T, which
+// walks the tree by parent PID and so misses orphaned children.
+func kill(st State) error {
+	if job := openJob(st, jobTerminate); job != 0 {
+		defer syscall.CloseHandle(job)
+		if r, _, _ := procTerminateJob.Call(uintptr(job), 1); r != 0 {
+			return nil
+		}
+	}
+	return exec.Command("taskkill", "/T", "/F", "/PID", strconv.Itoa(st.PID)).Run()
+}
+
+// groupAlive reports whether the server's job still has a live process.
+// Without a findable job it reports false.
+func groupAlive(st State) bool {
+	job := openJob(st, jobQuery)
+	if job == 0 {
+		return false
+	}
+	defer syscall.CloseHandle(job)
+	return jobActive(job)
 }

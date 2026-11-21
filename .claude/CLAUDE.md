@@ -23,7 +23,7 @@ Each fact lives in one doc. The rules below are short forms of decisions in thos
 
 - gsm is one Go binary, and that binary is the only public interface.
 - Games and addons are compile-time Go values (`internal/game`, `internal/addon`). No runtime manifests, no `games/` folder.
-- No daemon. A server is identified by its state file's PID, process start time and instance name, plus its process group. Never identify a server by binary name (two instances share a binary), and always signal the whole process group.
+- No daemon. A server is identified by its state file's PID, process start time and instance name, plus its process group (on Windows its Job Object, kept findable by a per-server holder process that supervises nothing). Never identify a server by binary name (two instances share a binary), and always signal the whole process group.
 - User data (`config/`, `saves/`) never lives inside `server/`; it's linked in with `fsutil.LinkTo`. Never merge or pick between two copies of user data: stop with an error.
 - Configs go in the instance's git repo; saves go to the snapshot store, never git. State, metadata and snapshot files are written through a temp file and an atomic rename (exceptions in `docs/architecture.md`, Atomic writes); a snapshot record is written last.
 - Only `cmd/gsm` prints or parses flags; `internal` packages return errors.
