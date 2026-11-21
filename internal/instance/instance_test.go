@@ -1,11 +1,13 @@
 package instance
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
 
+	"github.com/chopsticks-user/gsm/internal/fsutil"
 	"github.com/chopsticks-user/gsm/internal/game"
 )
 
@@ -34,7 +36,7 @@ func TestNextPort(t *testing.T) {
 func TestSaveLoadList(t *testing.T) {
 	home := t.TempDir()
 	in := Instance{Name: "main", Dir: filepath.Join(Root(home), "main"), Config: Config{
-		Game: "palworld", Port: 8211, Settings: map[string]string{"players": "8"},
+		Format: Format, Game: "palworld", Port: 8211, Settings: map[string]string{"players": "8"},
 		Addons: []string{"playit"}, Retention: Retention{Keep: 20},
 	}}
 	if err := os.MkdirAll(in.Dir, 0o755); err != nil {
@@ -67,5 +69,33 @@ func TestArgValues(t *testing.T) {
 	args, err := game.Palworld.RenderArgs(got)
 	if err != nil || args[0] != "-port=8311" || args[1] != "-players=4" {
 		t.Fatalf("args %v, %v", args, err)
+	}
+}
+
+func TestFormatVersion(t *testing.T) {
+	home := t.TempDir()
+	write := func(name, content string) {
+		t.Helper()
+		p := filepath.Join(Root(home), name, "instance.toml")
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// v0.1.0 wrote no format: it reads as version 1.
+	write("old", "game = \"palworld\"\nport = 8211\n")
+	if _, err := Load(home, "old"); err != nil {
+		t.Fatal(err)
+	}
+	// A newer gsm's file is refused by Load; List returns the rest and names it.
+	write("new", "format = 2\ngame = \"palworld\"\n")
+	if _, err := Load(home, "new"); !errors.Is(err, fsutil.ErrTooNew) {
+		t.Fatalf("Load = %v, want ErrTooNew", err)
+	}
+	all, err := List(home)
+	if !errors.Is(err, fsutil.ErrTooNew) || len(all) != 1 || all[0].Name != "old" {
+		t.Fatalf("List = %v, %v", all, err)
 	}
 }

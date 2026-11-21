@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -31,7 +32,7 @@ func cmdStart(e env, args []string) error {
 		return err
 	}
 	insts, err := targets(e, pos, *all, "start <name>... | --all")
-	if err != nil {
+	if err != nil && len(insts) == 0 {
 		return err
 	}
 	var failed []string
@@ -42,9 +43,9 @@ func cmdStart(e env, args []string) error {
 		}
 	}
 	if len(failed) > 0 {
-		return fmt.Errorf("failed to start: %s", strings.Join(failed, ", "))
+		err = errors.Join(err, fmt.Errorf("failed to start: %s", strings.Join(failed, ", ")))
 	}
-	return nil
+	return err
 }
 
 // prepare does everything start and run share before launching: links and
@@ -132,7 +133,11 @@ func openLog(i instance.Instance, rev string) (*os.File, error) {
 }
 
 func start(i instance.Instance) error {
-	if st, ok := proc.Running(i.StateFile(), i.Name); ok {
+	st, ok, err := proc.Running(i.StateFile(), i.Name)
+	if err != nil {
+		return err
+	}
+	if ok {
 		fmt.Printf("%s: already running (pid %d)\n", i.Name, st.PID)
 		return nil
 	}
@@ -146,7 +151,7 @@ func start(i instance.Instance) error {
 	}
 	defer logf.Close()
 	c.Stdout, c.Stderr = logf, logf
-	st, err := proc.Launch(c, i.StateFile(), i.Name)
+	st, err = proc.Launch(c, i.StateFile(), i.Name)
 	if err != nil {
 		return err
 	}
@@ -190,7 +195,7 @@ func cmdStop(e env, args []string) error {
 		return err
 	}
 	insts, err := targets(e, pos, *all, "stop <name>... | --all")
-	if err != nil {
+	if err != nil && len(insts) == 0 {
 		return err
 	}
 	var failed []string
@@ -201,14 +206,17 @@ func cmdStop(e env, args []string) error {
 		}
 	}
 	if len(failed) > 0 {
-		return fmt.Errorf("failed to stop: %s", strings.Join(failed, ", "))
+		err = errors.Join(err, fmt.Errorf("failed to stop: %s", strings.Join(failed, ", ")))
 	}
-	return nil
+	return err
 }
 
 func stop(e env, i instance.Instance) error {
+	st, ok, err := proc.Running(i.StateFile(), i.Name)
+	if err != nil {
+		return err
+	}
 	stopAddons(i)
-	st, ok := proc.Running(i.StateFile(), i.Name)
 	if !ok {
 		fmt.Printf("%s: not running\n", i.Name)
 		return proc.Clear(i.StateFile())
@@ -260,7 +268,11 @@ func cmdRun(e env, args []string) error {
 	if err != nil {
 		return err
 	}
-	if st, ok := proc.Running(i.StateFile(), i.Name); ok {
+	st, ok, err := proc.Running(i.StateFile(), i.Name)
+	if err != nil {
+		return err
+	}
+	if ok {
 		return fmt.Errorf("already running in the background (pid %d)", st.PID)
 	}
 	g, err := game.Get(i.Game)
@@ -285,7 +297,7 @@ func cmdRun(e env, args []string) error {
 	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
 	defer signal.Stop(sig)
 
-	st, err := proc.Launch(c, i.StateFile(), i.Name)
+	st, err = proc.Launch(c, i.StateFile(), i.Name)
 	if err != nil {
 		return err
 	}
@@ -330,13 +342,18 @@ func cmdStatus(e env, args []string) error {
 	if _, err := parse(fs, args); err != nil {
 		return err
 	}
-	all, err := instance.List(e.home)
-	if err != nil {
-		return err
+	all, listErr := instance.List(e.home)
+	if listErr != nil && len(all) == 0 {
+		return listErr
 	}
+	errs := []error{listErr}
 	rows := []statusRow{}
 	for _, i := range all {
-		st, ok := proc.Running(i.StateFile(), i.Name)
+		st, ok, err := proc.Running(i.StateFile(), i.Name)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("%s: %w", i.Name, err))
+			continue
+		}
 		r := statusRow{Name: i.Name, Game: i.Game, Port: i.Port, Running: ok, Addons: []string{}}
 		if ok {
 			r.PID = st.PID
@@ -353,7 +370,7 @@ func cmdStatus(e env, args []string) error {
 	if *asJSON {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		return enc.Encode(rows)
+		return errors.Join(append(errs, enc.Encode(rows))...)
 	}
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 	fmt.Fprintln(w, "NAME\tGAME\tPORT\tSTATE\tPID\tADDONS")
@@ -364,7 +381,7 @@ func cmdStatus(e env, args []string) error {
 		}
 		fmt.Fprintf(w, "%s\t%s\t%d\t%s\t%s\t%s\n", r.Name, r.Game, r.Port, state, pid, strings.Join(r.Addons, ","))
 	}
-	return w.Flush()
+	return errors.Join(append(errs, w.Flush())...)
 }
 
 func cmdLogs(e env, args []string) error {
@@ -427,7 +444,11 @@ func cmdUpdate(e env, args []string) error {
 	if err != nil {
 		return err
 	}
-	if _, ok := proc.Running(i.StateFile(), i.Name); ok {
+	_, ok, err := proc.Running(i.StateFile(), i.Name)
+	if err != nil {
+		return err
+	}
+	if ok {
 		return fmt.Errorf("stop the server first: gsm stop %s", i.Name)
 	}
 	g, err := game.Get(i.Game)

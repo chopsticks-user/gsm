@@ -8,6 +8,7 @@ All notable changes to gsm are listed here. The format follows [Keep a Changelog
 
 - Game servers that ship only for Windows can run on Linux through Wine: gsm installs the Windows build and runs it with `wine` and a Wine prefix per instance. A game can also set the signal that stops its server (for example SIGINT).
 - Games whose server keeps its config in one file in the install: gsm links it to `config/<file>` and, for a JSON file with a port key, sets only that key to the instance's port before each start. On Windows this needs file symlinks (Developer Mode or admin).
+- Every on-disk format records its version: `instance.toml`, `state.json`, snapshot records and the store (`store/format`). Data from v0.1.0, which has none, reads as version 1; data from a newer gsm is refused with a message to upgrade gsm.
 
 ## [0.1.0] - 2026-11-19
 
