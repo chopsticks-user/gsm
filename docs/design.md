@@ -20,7 +20,7 @@ gsm manages self-hosted game servers on one machine, for someone who runs a few 
 
 ## Principles
 
-1. **No daemon.** gsm starts a server and exits; later commands find the server again through a state file. There is no service to install, keep running or secure, and gsm can be upgraded at any time without touching running servers.
+1. **No daemon.** gsm starts a server and exits; later commands find the server again through a state file. There is no service to install, keep running or secure, and gsm can be upgraded at any time without touching running servers. One exception, on Windows only: a server's Job Object can only be found by name while some process holds a handle to it, and the launched process may exit before its children, so gsm starts a tiny holder (a copy of itself) per server that keeps the handle and exits when the job's last process does. It supervises nothing and stores nothing; if it dies, gsm falls back to `taskkill`. Rejected: keeping the handle in the launched process (lost when a launcher exits, the very case the job is for) and a permanent named object (needs a privilege normal users lack).
 2. **The install is disposable.** User data lives outside the steamcmd install and is linked into it, so reinstalling or validating can't touch it. This invariant comes from `scripts/palworld.sh`'s `link_to`, the script gsm grew out of.
 3. **Text goes to git, binaries go to the store.** Configs are small text files where diffs and history help, so they go in git. Saves are large binaries rewritten in full, which would bloat git without limit, so they go to a content-addressed, deduplicated, compressed store.
 4. **Crash-safe writes.** Every state, metadata and snapshot file gsm writes goes to a temp file first and is renamed into place, so a crash leaves the old version or the new one, never half a file. A snapshot exists only once its record is written. ([Atomic writes](architecture.md#atomic-writes) lists the exceptions.)
@@ -72,7 +72,6 @@ These follow the same design but aren't built yet. Each has an issue; which rele
 - **Updates** ([#12](https://github.com/chopsticks-user/gsm/issues/12)): `gsm update --all`.
 - **Unattended running:** log rotation ([#45](https://github.com/chopsticks-user/gsm/issues/45)), and port checks against other programs, not only other instances ([#46](https://github.com/chopsticks-user/gsm/issues/46)).
 - **Addons** ([#13](https://github.com/chopsticks-user/gsm/issues/13)): exercising the playit tunnel for real.
-- **Cross-platform** ([#61](https://github.com/chopsticks-user/gsm/issues/61)): a Job Object instead of the `taskkill` fallback on Windows.
 - **Off-machine backup and recovery** ([#14](https://github.com/chopsticks-user/gsm/issues/14)):
 
   ```

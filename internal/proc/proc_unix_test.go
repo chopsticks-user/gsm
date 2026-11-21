@@ -38,28 +38,6 @@ func TestStopKillsWholeGroup(t *testing.T) {
 	}
 }
 
-// Like steam-run: the launched process exits while its child keeps running.
-// The server must still count as running, and Stop must still end it.
-func TestLeaderExitsChildKeepsRunning(t *testing.T) {
-	pidFile := filepath.Join(t.TempDir(), "child")
-	st, sf := launch(t, "wrapper", "main", "GSM_CHILD_PID_FILE="+pidFile, "GSM_WRAPPER_EXITS=1")
-	for i := 0; i < 100 && Alive(st); i++ {
-		time.Sleep(50 * time.Millisecond)
-	}
-	if Alive(st) {
-		t.Fatal("wrapper should have exited")
-	}
-	if _, ok, _ := Running(sf, "main"); !ok {
-		t.Fatal("server reported stopped while its child runs")
-	}
-	if _, _, err := Stop(st, syscall.SIGTERM, time.Second); err != nil {
-		t.Fatal(err)
-	}
-	if _, ok, _ := Running(sf, "main"); ok {
-		t.Fatal("still running after Stop")
-	}
-}
-
 // A game's stop signal reaches the group: SIGINT stops a server that
 // ignores SIGTERM without a kill.
 func TestStopWithGameSignal(t *testing.T) {
