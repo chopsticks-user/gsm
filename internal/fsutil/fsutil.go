@@ -127,3 +127,15 @@ func IsEmptyDir(dir string) (bool, error) {
 	}
 	return len(entries) == 0, err
 }
+
+// ErrTooNew marks data written in a format newer than this gsm knows.
+var ErrTooNew = errors.New("written by a newer gsm; upgrade gsm")
+
+// CheckFormat refuses data whose format version is newer than known. A
+// missing version reads as 0, which counts as 1: v0.1.0 recorded none.
+func CheckFormat(what string, format, known int) error {
+	if format > known {
+		return fmt.Errorf("%s has format %d, this gsm knows up to %d: %w", what, format, known, ErrTooNew)
+	}
+	return nil
+}
