@@ -75,6 +75,10 @@ func Launch(c *exec.Cmd, stateFile, instance string) (State, error) {
 	if err := c.Start(); err != nil {
 		return State{}, err
 	}
+	if err := afterStart(c.Process.Pid); err != nil {
+		c.Process.Kill()
+		return State{}, err
+	}
 	t, err := StartTime(c.Process.Pid)
 	if err != nil {
 		c.Process.Kill()

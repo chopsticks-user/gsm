@@ -37,6 +37,23 @@ func TestMain(m *testing.M) {
 		signal.Notify(make(chan os.Signal, 1), syscall.SIGTERM, os.Interrupt)
 		time.Sleep(time.Hour)
 		os.Exit(0)
+	case "orphaner": // starts a child that starts a grandchild and exits, orphaning it; then survives stop requests
+		c := exec.Command(os.Args[0])
+		c.Env = append(os.Environ(), "GSM_FAKE_SERVER=middle")
+		if c.Run() != nil {
+			os.Exit(1)
+		}
+		signal.Notify(make(chan os.Signal, 1), syscall.SIGTERM, os.Interrupt)
+		time.Sleep(time.Hour)
+		os.Exit(0)
+	case "middle":
+		c := exec.Command(os.Args[0])
+		c.Env = append(os.Environ(), "GSM_FAKE_SERVER=stubborn")
+		if c.Start() != nil {
+			os.Exit(1)
+		}
+		os.WriteFile(os.Getenv("GSM_CHILD_PID_FILE"), []byte(strconv.Itoa(c.Process.Pid)), 0o644)
+		os.Exit(0)
 	case "wrapper": // like PalServer.sh: starts the real server as a child and waits
 		c := exec.Command(os.Args[0])
 		c.Env = append(os.Environ(), "GSM_FAKE_SERVER=stubborn")
@@ -172,4 +189,36 @@ func TestStateFormat(t *testing.T) {
 			t.Errorf("%s: err = %v", content, err)
 		}
 	}
+}
+
+// A force stop reaches a grandchild whose parent already exited: through the
+// process group on Unix, through the Job Object on Windows (taskkill /T,
+// which follows parent PIDs, would miss it).
+func TestKillReachesOrphanedGrandchild(t *testing.T) {
+	pidFile := filepath.Join(t.TempDir(), "grandchild")
+	st, _ := launch(t, "orphaner", "main", "GSM_CHILD_PID_FILE="+pidFile)
+	var gc int
+	for i := 0; i < 100 && gc == 0; i++ {
+		b, _ := os.ReadFile(pidFile)
+		gc, _ = strconv.Atoi(strings.TrimSpace(string(b)))
+		time.Sleep(50 * time.Millisecond)
+	}
+	if gc == 0 {
+		t.Fatal("no grandchild PID")
+	}
+	t.Cleanup(func() {
+		if p, err := os.FindProcess(gc); err == nil {
+			p.Kill()
+		}
+	})
+	if killed, _, err := Stop(st, syscall.SIGTERM, time.Second); err != nil || !killed {
+		t.Fatalf("killed %v, err %v", killed, err)
+	}
+	for i := 0; i < 100; i++ {
+		if _, err := StartTime(gc); err != nil {
+			return
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatal("orphaned grandchild survived the force stop")
 }

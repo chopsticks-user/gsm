@@ -28,4 +28,5 @@ func ignoreGone(err error) error {
 }
 
 // HandleHelper is a no-op on Unix; see the Windows version.
-func HandleHelper() {}
+func HandleHelper()        {}
+func afterStart(int) error { return nil } // a new session (detach) already groups the server's processes

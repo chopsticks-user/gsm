@@ -6,6 +6,8 @@ All notable changes to gsm are listed here. The format follows [Keep a Changelog
 
 ### Added
 
+- On Windows, a server and every process it starts run in a Job Object, so a force stop also ends orphaned child processes. From another login session gsm falls back to `taskkill /T` as before.
+
 - Enshrouded dedicated servers (`gsm create enshrouded`): through Wine on Linux, natively on Windows (untested there), with the port set in `enshrouded_server.json`.
 - Game servers that ship only for Windows can run on Linux through Wine: gsm installs the Windows build and runs it with `wine` and a Wine prefix per instance. A game can also set the signal that stops its server (for example SIGINT).
 - Games whose server keeps its config in one file in the install: gsm links it to `config/<file>` and, for a JSON file with a port key, sets only that key to the instance's port before each start. On Windows this needs file symlinks (Developer Mode or admin).

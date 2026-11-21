@@ -72,7 +72,6 @@ These follow the same design but aren't built yet. Each has an issue; which rele
 - **Updates** ([#12](https://github.com/chopsticks-user/gsm/issues/12)): `gsm update --all`.
 - **Unattended running:** log rotation ([#45](https://github.com/chopsticks-user/gsm/issues/45)), and port checks against other programs, not only other instances ([#46](https://github.com/chopsticks-user/gsm/issues/46)).
 - **Addons** ([#13](https://github.com/chopsticks-user/gsm/issues/13)): exercising the playit tunnel for real.
-- **Cross-platform** ([#61](https://github.com/chopsticks-user/gsm/issues/61)): a Job Object instead of the `taskkill` fallback on Windows.
 - **Off-machine backup and recovery** ([#14](https://github.com/chopsticks-user/gsm/issues/14)):
 
   ```
