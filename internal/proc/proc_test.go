@@ -11,6 +11,8 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/chopsticks-user/gsm/internal/fsutil"
 )
 
 // TestMain doubles as a fake game server: the tests re-run this test binary
@@ -23,8 +25,10 @@ func TestMain(m *testing.M) {
 		signal.Notify(c, syscall.SIGTERM, os.Interrupt)
 		<-c
 		os.Exit(0)
-	case "stubborn": // ignores the stop signal, so only a kill ends it
-		signal.Ignore(syscall.SIGTERM, os.Interrupt)
+	case "stubborn": // survives the stop signal, so only a kill ends it
+		// Catch the signals and drop them: signal.Ignore on Windows hands
+		// Ctrl+Break to the default handler, which exits the process.
+		signal.Notify(make(chan os.Signal, 1), syscall.SIGTERM, os.Interrupt)
 		time.Sleep(time.Hour)
 		os.Exit(0)
 	case "wrapper": // like PalServer.sh: starts the real server as a child and waits
@@ -60,10 +64,10 @@ func launch(t *testing.T, mode, instance string, extraEnv ...string) (State, str
 
 func TestStartThenRunning(t *testing.T) {
 	st, sf := launch(t, "obedient", "main")
-	if got, ok := Running(sf, "main"); !ok || got.PID != st.PID {
+	if got, ok, _ := Running(sf, "main"); !ok || got.PID != st.PID {
 		t.Fatalf("Running = %v, %v", got, ok)
 	}
-	if _, ok := Running(sf, "other"); ok {
+	if _, ok, _ := Running(sf, "other"); ok {
 		t.Fatal("state file of instance main matched instance other")
 	}
 }
@@ -74,7 +78,7 @@ func TestStopObedient(t *testing.T) {
 	if err != nil || killed {
 		t.Fatalf("killed=%v err=%v", killed, err)
 	}
-	if _, ok := Running(sf, "main"); ok {
+	if _, ok, _ := Running(sf, "main"); ok {
 		t.Fatal("still running")
 	}
 }
@@ -144,5 +148,22 @@ func TestStopRequestFailsServerAlreadyGone(t *testing.T) {
 	killed, _, err := Stop(st, time.Second)
 	if err != nil || killed {
 		t.Fatalf("killed=%v err=%v, want a clean stop", killed, err)
+	}
+}
+
+// A state file without a format (v0.1.0) still reads; a newer one is an
+// error, not "stopped", so gsm never starts a second server beside it.
+func TestStateFormat(t *testing.T) {
+	sf := filepath.Join(t.TempDir(), "state.json")
+	for content, tooNew := range map[string]bool{
+		`{"pid":1,"start_time":"x","instance":"main"}`:            false,
+		`{"format":2,"pid":1,"start_time":"x","instance":"main"}`: true,
+	} {
+		if err := os.WriteFile(sf, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := Running(sf, "main"); errors.Is(err, fsutil.ErrTooNew) != tooNew {
+			t.Errorf("%s: err = %v", content, err)
+		}
 	}
 }

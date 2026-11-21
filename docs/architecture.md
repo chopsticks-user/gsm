@@ -93,6 +93,7 @@ $GSM_HOME/
     objects/<2 hex>/<sha256>
     snapshots/<instance>/<YYYYMMDDTHHMMSSZ>-<id>.json
     lock                     only while a gsm process writes
+    format                   store layout version
 ```
 
 `$GSM_HOME` is resolved by a pure function that takes the OS name and environment as parameters, so the unit tests check every OS branch on any machine. The first match wins: `--home`, then `GSM_HOME`, then the per-OS default (see [Cross-platform behavior](#cross-platform-behavior)).
@@ -101,9 +102,18 @@ User data never lives inside `server/`. It is linked in, so a reinstall or a ste
 
 ## File formats
 
+### Format versions
+
+Every format gsm writes carries a version: `format` in `instance.toml`, `state.json` and each snapshot record, and the file `store/format` (one number and a newline) for the store layout: the `objects/`, `snapshots/` and `lock` structure. All are 1 so far. Each has its own constant (`instance.Format`, `proc.Format`, `store.Format`, `store.RecordFormat`), bumped only when that format changes. The lock has no version of its own: it is part of the store layout.
+
+- **Missing version:** v0.1.0 wrote none, so a missing version reads as 1. `store/format` is created by the first `store.Lock`, while holding the lock, so it can never overwrite a newer gsm's version.
+- **Newer version:** refused with `<file> has format N, this gsm knows up to M: written by a newer gsm; upgrade gsm` (`fsutil.CheckFormat`). gsm never reads data it might misunderstand or writes over it. `list`, `status` and `start|stop --all` still act on the other instances, then fail naming the refused ones rather than hiding them. A refused `state.json` fails the command for that instance rather than reporting the server stopped, which could start a second one; `stop` checks it before stopping addons.
+- **Older version:** read as is. When a format first changes, the new gsm will either read both versions or migrate the old one; a migration writes its new data first and the version last, so an interrupted one still reads as the old version and simply runs again.
+
 **`instance.toml`**
 
 ```toml
+format = 1
 game = "palworld"
 port = 8211
 addons = ["playit"]
@@ -117,6 +127,7 @@ addons = ["playit"]
 
 | Key | Type | Meaning |
 |---|---|---|
+| `format` | int | format version (see [Format versions](#format-versions)) |
 | `game` | string | game name, e.g. `palworld` |
 | `port` | int | game port |
 | `settings` | table of strings | values for args placeholders, overriding game defaults |
@@ -137,7 +148,7 @@ addons = ["playit"]
 **`state.json`:**
 
 ```json
-{"pid":39692,"start_time":"525318","instance":"main"}
+{"format":1,"pid":39692,"start_time":"525318","instance":"main"}
 ```
 
 `start_time` is an OS-specific string, compared only for equality.
@@ -146,6 +157,7 @@ addons = ["playit"]
 
 ```json
 {
+  "format": 1,
   "id": "3735cbf0",
   "instance": "main",
   "game": "palworld",
@@ -303,7 +315,7 @@ Because the record comes last, a snapshot exists exactly when its record does. A
 
 ### The store lock
 
-`store/lock` holds the owner's PID and start time. gsm writes that to a temp file in `store/` first and then hard-links it to `store/lock`; the link fails if the lock exists, so exactly one process gets it, and a live holder's lock is never empty or half-written. If it exists, gsm checks whether the owner still runs (PID and start time, without the process-group rule, since a gsm process is not a server). A dead owner means a crash left it behind, and a lock that isn't valid JSON can only come from a crash or an older gsm: either way gsm deletes it and retries. If it can't delete it, gsm fails right away with the reason. A live owner means gsm polls every 200 ms for up to 30 s, then fails with `snapshot store is locked by another gsm process (pid N)`.
+`store/lock` holds the owner's PID and start time. gsm first refuses a store with a newer `store/format` (see [Format versions](#format-versions)), then writes the lock content to a temp file in `store/` and hard-links it to `store/lock`; the link fails if the lock exists, so exactly one process gets it, and a live holder's lock is never empty or half-written. If it exists, gsm checks whether the owner still runs (PID and start time, without the process-group rule, since a gsm process is not a server). A dead owner means a crash left it behind, and a lock that isn't valid JSON can only come from a crash or an older gsm: either way gsm deletes it and retries. If it can't delete it, gsm fails right away with the reason. A live owner means gsm polls every 200 ms for up to 30 s, then fails with `snapshot store is locked by another gsm process (pid N)`. Once it holds the lock, gsm writes `store/format` if the store has none.
 
 Commands that write to the store take it: `save snapshot`, the automatic snapshots in `stop`, `run` and `update`, and `save restore`, which holds it across both the safety snapshot and the swap.
 
@@ -342,7 +354,7 @@ podman run -d --rm --name gsm-<instance>-playit --network=host \
 
 ## Atomic writes
 
-`WriteAtomic` (for `state.json`, `instance.toml`, `.gitignore` and snapshot records), `CopyFile` (the seeded config, `steamclient.so`) and the object writer follow one pattern:
+`WriteAtomic` (for `state.json`, `instance.toml`, `.gitignore`, snapshot records and `store/format`), `CopyFile` (the seeded config, `steamclient.so`) and the object writer follow one pattern:
 
 1. create a temp file in the same folder as the destination, so the rename stays on one filesystem
 2. write, then `fsync`
@@ -382,6 +394,6 @@ Other writes are not atomic, on purpose: `logs/server.log` is appended, and rest
 
 **NixOS** (detected by `/etc/NIXOS`): Steam binaries need `steam-run`, which gives the server a fresh `/tmp` (so `$GSM_HOME` can't be under `/tmp`), and the server needs `steamclient.so` in `~/.steam/sdk64`. `doctor` checks for both.
 
-**Windows.** There is no SIGTERM; the closest is a Ctrl+Break console event, which `GenerateConsoleCtrlEvent` can send to a process group. The sender must share the server's console, so the server gets a hidden console of its own (`CREATE_NO_WINDOW`). Attaching to it would disturb gsm's own terminal, so gsm starts a short-lived copy of itself (`gsm __gsm-ctrl-break <pid>`, handled by `proc.HandleHelper`) that does `FreeConsole`, `AttachConsole(pid)` and `GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, pid)`. The force-stop fallback, `taskkill /T`, walks the tree by parent PID. It runs when the graceful stop times out, including when the helper failed (for example when it can't attach to the console), which gsm reports as a warning. Directory junctions appear in Go 1.23+ as `ModeIrregular`, not symlinks, which `LinkTo` accounts for. All of this compiles but hasn't run on real Windows.
+**Windows.** There is no SIGTERM; the closest is a Ctrl+Break console event, which `GenerateConsoleCtrlEvent` can send to a process group. The sender must share the server's console, so the server gets a hidden console of its own (`CREATE_NO_WINDOW`). Attaching to it would disturb gsm's own terminal, so gsm starts a short-lived copy of itself (`gsm __gsm-ctrl-break <pid>`, handled by `proc.HandleHelper`) that does `FreeConsole`, `AttachConsole(pid)` and `GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, pid)`. The force-stop fallback, `taskkill /T`, walks the tree by parent PID. It runs when the graceful stop times out, including when the helper failed (for example when it can't attach to the console), which gsm reports as a warning. Directory junctions appear in Go 1.23+ as `ModeIrregular`, not symlinks, which `LinkTo` accounts for. The unit tests for all of this run on Windows in CI; no real server has run on Windows yet.
 
 **macOS.** Few dedicated servers ship macOS binaries, so `create` refuses games without a macOS launch entry. The rest works as on Linux, except the start time lookup.
