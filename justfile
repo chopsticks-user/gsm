@@ -38,6 +38,10 @@ vuln:
 smoke *args:
     scripts/smoke-palworld.sh "$@"
 
+# Lifecycle against the real Enshrouded server under Wine (2 x 7.6 GB download); `--hold` to connect a client
+smoke-enshrouded *args:
+    scripts/smoke-enshrouded.sh "$@"
+
 # Release binaries for every OS and CPU into build/release/
 release-build version:
     scripts/release-build.sh "$1"

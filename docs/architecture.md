@@ -58,17 +58,17 @@ Code that differs per OS lives in files the compiler picks by name or build tag:
 
 Games are compiled into the binary, in `internal/game`. The code that installs, launches and stops servers is identical for every game; a definition only supplies the facts that differ:
 
-| Field | Palworld |
-|---|---|
-| Steam app ID | `2394010` |
-| Launch per OS | Linux: `PalServer.sh`; Windows: `PalServer.exe` |
-| Config path in the install | `Pal/Saved/Config/LinuxServer` (or `WindowsServer`) |
-| Saves path in the install | `Pal/Saved/SaveGames` |
-| Args template | `-port={port} -players={players} -useperfthreads ...` |
-| Defaults | `players=16` |
-| Default port | `8211` |
-| Stop timeout | 30s |
-| Default config | `DefaultPalWorldSettings.ini`, copied to `PalWorldSettings.ini` |
+| Field | Palworld | Enshrouded |
+|---|---|---|
+| Steam app ID | `2394010` | `2278520` |
+| Launch per OS | Linux: `PalServer.sh`; Windows: `PalServer.exe` | `enshrouded_server.exe`: through Wine on Linux, native on Windows |
+| Config in the install | folder `Pal/Saved/Config/LinuxServer` (or `WindowsServer`) | file `enshrouded_server.json`, port key `queryPort` |
+| Saves path in the install | `Pal/Saved/SaveGames` | `savegame` |
+| Args template | `-port={port} -players={players} -useperfthreads ...` | none |
+| Defaults | `players=16` | none |
+| Default port | `8211` | `15637` (UDP) |
+| Stop timeout | 30s | 30s, SIGINT |
+| Default config | `DefaultPalWorldSettings.ini`, copied to `PalWorldSettings.ini` | none (the server writes it on first start) |
 
 Paths are written with `/` and converted with `filepath.FromSlash`, so one definition works on Windows too. A game supports an OS exactly when it has a launch entry for it.
 
@@ -207,7 +207,7 @@ If any step fails, gsm deletes `instances/<name>` entirely: nothing in it belong
 `LinkTo(path, target)` makes `path` (inside `server/`) a link to `target` (the instance's folder). Symlinks on Unix, directory junctions on Windows. It handles every starting state:
 
 | What is at `path` | What LinkTo does |
-|---|---|
+|---|---|---|
 | nothing | create the link |
 | a link already pointing at `target` | nothing |
 | a link pointing somewhere else | remove the link (never its target), create the right one |
@@ -262,7 +262,7 @@ session/group 39692
 There is no daemon to ask, so the state file has to be enough, and a plain PID is not: PIDs get reused after a process dies or after a reboot, and two instances of a game run the same binary, so a name match can't tell them apart. The state file records the PID, the process start time and the instance name:
 
 | Situation | Verdict |
-|---|---|
+|---|---|---|
 | state file missing, unreadable, or for another instance name | stopped |
 | a process with that PID exists, same start time | running |
 | a process with that PID exists, different start time | stopped (the PID was reused) |

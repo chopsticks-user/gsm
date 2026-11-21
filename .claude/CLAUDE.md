@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-`gsm` is a cross-platform (Linux, Windows, macOS) CLI for managing self-hosted game servers: several named instances per game, git-tracked configs and deduplicated save snapshots, with no daemon. Palworld is the only game so far. `scripts/palworld.sh` is the NixOS-only Bash script gsm grew out of, kept for reference.
+`gsm` is a cross-platform (Linux, Windows, macOS) CLI for managing self-hosted game servers: several named instances per game, git-tracked configs and deduplicated save snapshots, with no daemon. Games so far: Palworld and Enshrouded (through Wine on Linux). `scripts/palworld.sh` is the NixOS-only Bash script gsm grew out of, kept for reference.
 
 ## Docs
 
@@ -39,7 +39,7 @@ Go is not installed globally; use the flake's dev shell (details in `docs/develo
 - Release binaries into `build/release/`: `nix develop path:./flake -c scripts/release-build.sh v1.2.3`
 - Test: `nix develop path:./flake -c go test -race ./...`
 - Verify (scripts syntax, gofmt, go vet for Linux/Windows/macOS, race tests including the end-to-end test; CI runs the same): `nix develop path:./flake -c scripts/verify.sh`
-- Smoke test against the real Palworld server (5 GB download, run before a release): `nix develop path:./flake -c scripts/smoke-palworld.sh`
+- Smoke tests against the real servers (run before a release): `nix develop path:./flake -c scripts/smoke-palworld.sh` (5 GB download) and `nix develop path:./flake -c scripts/smoke-enshrouded.sh` (2 x 7.6 GB, needs wine)
 - Vulnerability scan (CI runs it for Linux, Windows and macOS; needs the network): `nix develop path:./flake -c govulncheck -test ./...`
 - A stdlib vulnerability or a Dependabot `go` bump that fails CI is fixed by `nix flake update --flake path:./flake` (Dependabot doesn't update `flake/flake.lock`)
 
