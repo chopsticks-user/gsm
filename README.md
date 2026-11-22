@@ -27,7 +27,7 @@ main: snapshot 07c32289 (4 files, 33.4 KiB)
 
 ## Status
 
-gsm is pre-1.0. It supports **Palworld** and **Enshrouded** dedicated servers on Linux and Windows (Enshrouded through Wine on Linux; the Windows code hasn't run on real Windows yet). Off-machine backups and recovery are designed but not built; see the [roadmap](docs/roadmap.md).
+gsm is pre-1.0. It supports **Palworld** and **Enshrouded** dedicated servers on Linux and Windows (Enshrouded through Wine on Linux), each checked by a smoke test against the real server on both. Off-machine backups and recovery are designed but not built; see the [roadmap](docs/roadmap.md).
 
 ## Install
 

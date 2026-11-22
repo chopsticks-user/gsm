@@ -117,8 +117,10 @@ var Palworld = Game{
 	Title:      "Palworld",
 	SteamAppID: "2394010",
 	Launch: map[string]Launch{
-		"linux":   {Command: "PalServer.sh", ConfigDir: "Pal/Saved/Config/LinuxServer", SavesDir: "Pal/Saved/SaveGames"},
-		"windows": {Command: "PalServer.exe", ConfigDir: "Pal/Saved/Config/WindowsServer", SavesDir: "Pal/Saved/SaveGames"},
+		"linux": {Command: "PalServer.sh", ConfigDir: "Pal/Saved/Config/LinuxServer", SavesDir: "Pal/Saved/SaveGames"},
+		// The server exe itself: PalServer.exe, a launcher, doesn't start it everywhere (not on a
+		// headless Windows Server, seen in CI), and gsm then tracks the server directly.
+		"windows": {Command: "Pal/Binaries/Win64/PalServer-Win64-Shipping-Cmd.exe", ConfigDir: "Pal/Saved/Config/WindowsServer", SavesDir: "Pal/Saved/SaveGames"},
 	},
 	Args:              []string{"-port={port}", "-players={players}", "-useperfthreads", "-NoAsyncLoadingThread", "-UseMultithreadForDS"},
 	DefaultPort:       8211,
