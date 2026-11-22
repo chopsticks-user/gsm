@@ -29,23 +29,13 @@ jobs:
       - name: Verify
         run: nix develop -c scripts/verify.sh
       # The Nix package; fails on a stale vendorHash (fixed by vendorhash.yml on Dependabot PRs).
+      # The overlay check fails if it would replace a nixpkgs package.
       - name: Nix package
-        run: nix build --no-link .#default
+        run: nix build --no-link .#default .#checks.x86_64-linux.overlay
       # Consumers build gsm with their own nixpkgs (the overlay or follows), so
-      # it must also build with the current stable release's Go.
+      # it must also build, and not clash, with the current stable release.
       - name: Nix package (stable nixpkgs)
-        run: nix build --no-link .#default --override-input nixpkgs github:nixos/nixpkgs/nixos-26.05
-      # An overlay attribute nixpkgs already has would replace it for every
-      # package that depends on it (pkgs.gsm is the libgsm audio codec).
-      - name: Overlay adds only new attributes
-        run: |
-          nix eval --impure --expr '
-            let
-              flake = builtins.getFlake (toString ./.);
-              pkgs = flake.inputs.nixpkgs.legacyPackages.x86_64-linux;
-              clashes = builtins.filter (n: pkgs ? ${n}) (builtins.attrNames (flake.overlays.default pkgs pkgs));
-            in
-            if clashes == [ ] then "ok" else throw "overlay replaces nixpkgs attributes: ${toString clashes}"'
+        run: nix build --no-link .#default .#checks.x86_64-linux.overlay --override-input nixpkgs github:nixos/nixpkgs/nixos-26.05
       # Fails on known vulnerabilities in code gsm actually calls, tests
       # included, for every OS it ships for (per-OS files differ). Separate
       # from verify because it needs the network for the vulnerability database.

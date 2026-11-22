@@ -4,10 +4,13 @@ All notable changes to gsm are listed here. The format follows [Keep a Changelog
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** the flake's overlay adds gsm as `pkgs.gsm-cli` instead of `pkgs.gsm`, and the Nix package is named `gsm-cli`; the binary is still `gsm`. `pkgs.gsm` is nixpkgs' libgsm audio codec, and replacing it broke every package that links it (ffmpeg, SDL3, GStreamer, Firefox). A config that keeps `pkgs.gsm` still builds without an error but installs the codec and no `gsm` command, so switch to `pkgs.gsm-cli`.
+
 ### Fixed
 
 - The flake's `overlays.default` builds gsm with the consumer's `pkgs` and Go, so `inputs.gsm.inputs.nixpkgs.follows` and other overlays apply. gsm now needs Go 1.26.0 or later instead of 1.26.10.
-- The flake's overlay adds gsm as `pkgs.gsm-cli` instead of `pkgs.gsm`. `pkgs.gsm` is nixpkgs' libgsm audio codec, and replacing it broke every package that links it (ffmpeg, SDL3, GStreamer, Firefox). Users of the overlay must switch to `pkgs.gsm-cli`.
 
 ## [0.2.0] - 2026-11-22
 
