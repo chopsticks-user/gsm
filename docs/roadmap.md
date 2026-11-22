@@ -59,4 +59,10 @@ The promise release: the CLI and the on-disk formats are frozen, and any later f
 
 ## Not planned
 
-Nothing open is outside a milestone right now. Issues that don't fit any theme stay without a milestone until one fits, and are listed here.
+Issues that don't fit any theme stay without a milestone until one fits, and are listed here:
+
+- [#74](https://github.com/chopsticks-user/gsm/issues/74) Game-specific tools as gsm subcommands, starting with save editing
+- [#75](https://github.com/chopsticks-user/gsm/issues/75) Run the Linux smoke tests in a container from CI
+- [#77](https://github.com/chopsticks-user/gsm/issues/77) Move the end-to-end test into tests/
+- [#78](https://github.com/chopsticks-user/gsm/issues/78) Project agent skills (gsm:*) for developer guidance and chores
+- [#79](https://github.com/chopsticks-user/gsm/issues/79) Narrow the Nix package source to the Go files
