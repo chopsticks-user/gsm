@@ -4,6 +4,10 @@ All notable changes to gsm are listed here. The format follows [Keep a Changelog
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-22
+
+Enshrouded through Wine on Linux, Job Objects on Windows, versioned data formats, and a Nix flake.
+
 ### Added
 
 - `just install [dir]` builds gsm from a checkout into `~/.local/bin` (or `dir`).
@@ -35,5 +39,6 @@ The first release: Palworld dedicated servers on Linux and Windows.
 - Release binaries for Linux, Windows and macOS on amd64 and arm64, with SHA-256 checksums.
 - Documentation: a user guide, architecture and design docs, a development guide, and contributing, security and conduct policies. MIT license.
 
-[Unreleased]: https://github.com/chopsticks-user/gsm/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/chopsticks-user/gsm/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/chopsticks-user/gsm/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/chopsticks-user/gsm/releases/tag/v0.1.0
