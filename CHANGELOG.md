@@ -9,10 +9,16 @@ All notable changes to gsm are listed here. The format follows [Keep a Changelog
 - `just install [dir]` builds gsm from a checkout into `~/.local/bin` (or `dir`).
 - The flake (now at the repo root) builds gsm as a Nix package and provides `overlays.default`, which adds `gsm` to `pkgs` in a NixOS or Home Manager config.
 - On Windows, a server and every process it starts run in a Job Object, so a force stop also ends orphaned child processes. From another login session gsm falls back to `taskkill /T` as before.
-- Enshrouded dedicated servers (`gsm create enshrouded`): through Wine on Linux, natively on Windows (untested there), with the port set in `enshrouded_server.json`.
+- Enshrouded dedicated servers (`gsm create enshrouded`): through Wine on Linux, natively on Windows, with the port set in `enshrouded_server.json`.
 - Game servers that ship only for Windows can run on Linux through Wine: gsm installs the Windows build and runs it with `wine` and a Wine prefix per instance. A game can also set the signal that stops its server (for example SIGINT).
 - Games whose server keeps its config in one file in the install: gsm links it to `config/<file>` and, for a JSON file with a port key, sets only that key to the instance's port before each start. On Windows this needs file symlinks (Developer Mode or admin).
 - Every on-disk format records its version: `instance.toml`, `state.json`, snapshot records and the store (`store/format`). Data from v0.1.0, which has none, reads as version 1; data from a newer gsm is refused with a message to upgrade gsm.
+- The real-server smoke tests also run on Windows, in a manually started CI workflow.
+
+### Fixed
+
+- Palworld on Windows: gsm starts the server exe (`Pal/Binaries/Win64/PalServer-Win64-Shipping-Cmd.exe`) instead of the `PalServer.exe` launcher, which never started the server on a headless Windows Server.
+- A failed steamcmd install is retried once: a fresh steamcmd often fails its first install with "Missing configuration".
 
 ## [0.1.0] - 2026-11-19
 

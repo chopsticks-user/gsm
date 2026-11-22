@@ -247,7 +247,7 @@ Everything above works the same for Enshrouded (`gsm create enshrouded <name>`);
 - **One config file.** The whole config is `config/enshrouded_server.json`. gsm owns only `queryPort` (UDP, default 15637; a second instance gets 15638): it sets it to the instance's port before every start, so change the port with `--port` at `create`, not in the file. Everything else in the file is yours and goes into config history like Palworld's settings, except that `saveDirectory` and `logDirectory` must stay as the server writes them (`./savegame`, `./logs`): gsm snapshots only what lands in `savegame`, so a world saved elsewhere would have no snapshots.
 - **Passwords in config history.** On its first start the server fills the file in, including random passwords for its user groups, and gsm commits it on the next start. Treat the config repo as secret ([Known limitations](design.md#known-limitations)).
 - **Stopping.** gsm stops it with SIGINT, which makes it save on the way out (SIGTERM would kill Wine without saving).
-- **Windows is untested.** Enshrouded has run under Wine on Linux; its native Windows launch has not run on real Windows yet, and needs file symlinks there (Developer Mode or admin). gsm stops it there with Ctrl+Break, and whether the server saves on Ctrl+Break is unknown: until that is checked, stop it from the game first or expect to lose progress since the last autosave.
+- **Windows.** The server runs natively and passes the smoke test on a Windows Server CI runner, where gsm stops it with Ctrl+Break and it saves on the way out. It needs file symlinks for its config file, so on a desktop turn on Developer Mode or run gsm as admin.
 
 ## Command reference
 

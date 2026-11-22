@@ -90,7 +90,7 @@ These follow the same design but aren't built yet. Each has an issue; which rele
 - **Secrets in git:** `AdminPassword` lives in `PalWorldSettings.ini`, and Enshrouded writes random passwords for its user groups into `enshrouded_server.json` on its first start; the local config repo tracks both. That must be solved before remotes exist.
 - **Snapshot growth:** nothing prunes snapshots yet, and Palworld keeps its own world backups inside `saves/`, which gsm snapshots too.
 - **Log size:** `logs/server.log` grows forever.
-- **Windows:** the unit tests run on Windows in CI, but no server has run on real Windows yet. Games with a single config file need file symlinks there (Developer Mode or admin): a hard link, which needs neither, would split into two copies on gsm's atomic writes and git checkouts, so gsm refuses rather than fall back to one.
+- **Windows:** the unit tests run on Windows in CI, and both games pass the real-server smoke tests on a GitHub Windows Server runner (`smoke-windows.yml`, run before a release). That runner is an admin session; a desktop without admin rights or Developer Mode is untested. Games with a single config file need file symlinks there (Developer Mode or admin): a hard link, which needs neither, would split into two copies on gsm's atomic writes and git checkouts, so gsm refuses rather than fall back to one.
 - **Power loss:** the folder isn't `fsync`ed after an atomic rename, so a power cut can lose the latest write (never corrupt it).
 
 ## Open questions

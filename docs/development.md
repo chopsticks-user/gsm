@@ -87,6 +87,8 @@ Repeats the lifecycle against the real Palworld dedicated server: it downloads i
 
 `smoke-enshrouded.sh` does the same for Enshrouded under Wine: it creates an instance (about 7.6 GB), checks the config file is linked and its `queryPort` is 15637, waits for UDP 15637 and the first save, checks the server kept the link and the port, stops with SIGINT and checks a save was written on the way out, restores over a corrupted save and starts again, creates a second instance and checks it gets and listens on 15638, and updates. It needs `wine` and `ss` too, and free UDP ports 15637 and 15638.
 
+On Windows, the same two scripts run under Git Bash against the native servers: they check UDP ports with PowerShell instead of `ss`, build `gsm.exe`, and skip the Wine check. `.github/workflows/smoke-windows.yml` installs steamcmd and runs both on `windows-latest`. Start it from the Actions tab (Smoke (Windows), Run workflow) or with `gh workflow run smoke-windows.yml`; it also runs on pull requests that change the workflow, the smoke scripts or the Windows process code. When a smoke test fails, it prints `gsm status`, the tail of each server log and, on Windows, the server processes and UDP ports, before deleting its throwaway home.
+
 ### CI
 
 `.github/workflows/ci.yml` runs verify through the flake on `ubuntu-latest` for every pull request and every push to `main`, the same command as locally. Alongside it, the `test` job runs `go test ./...` on `windows-latest` and `macos-latest` with the Go from `go.mod` (`actions/setup-go`), since the flake doesn't run on Windows. The race detector and the end-to-end test stay in the Linux job. Tests that need Unix signals live in `*_unix_test.go`; a fake server that must survive a stop request catches the signal and drops it, since `signal.Ignore` on Windows lets Ctrl+Break end the process.
@@ -151,7 +153,7 @@ Patches come from a release branch, not `main`, because `main` already carries u
 What a version number means is in [Versioning](#versioning). To cut a release:
 
 1. For a minor release: every issue in its [milestone](https://github.com/chopsticks-user/gsm/milestones) is closed, its exit criteria in [roadmap.md](roadmap.md) hold, and CI is green on `main`. For a patch: the fixes are cherry-picked onto `release-X.Y` (see [Versioning](#versioning)).
-2. Run the smoke tests with a game client: `nix develop -c scripts/smoke-palworld.sh --hold` and `nix develop -c scripts/smoke-enshrouded.sh --hold`, and connect to each server (UDP 8211, UDP 15637) while it holds.
+2. Run the smoke tests with a game client: `nix develop -c scripts/smoke-palworld.sh --hold` and `nix develop -c scripts/smoke-enshrouded.sh --hold`, and connect to each server (UDP 8211, UDP 15637) while it holds. Then run the Windows smoke tests (`gh workflow run smoke-windows.yml`) and check both jobs pass.
 3. In `CHANGELOG.md`, rename `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD`, start a new empty `## [Unreleased]` above it, update the links at the bottom, and merge that through a pull request. For a patch, the section goes on the release branch first (steps in [Versioning](#versioning)). A pre-release (`vX.Y.Z-rc.N`) can skip this: without a section of its own, its notes come from `[Unreleased]`.
 4. Tag the merge commit on `main` (or on `release-X.Y` for a patch) and push the tag:
    ```
