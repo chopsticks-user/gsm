@@ -26,6 +26,17 @@ func Install(dir, appID, platform string, out io.Writer) error {
 		args = []string{"+@sSteamCmdForcePlatformType", platform}
 	}
 	args = append(args, "+force_install_dir", dir, "+login", "anonymous", "+app_update", appID, "validate", "+quit")
+	// A fresh steamcmd sometimes fails its first install ("Missing
+	// configuration") and succeeds when run again, so a failure gets one retry.
+	err := installOnce(dir, appID, args, out)
+	if err != nil {
+		fmt.Fprintf(out, "%v; trying once more\n", err)
+		err = installOnce(dir, appID, args, out)
+	}
+	return err
+}
+
+func installOnce(dir, appID string, args []string, out io.Writer) error {
 	c := exec.Command(Command, args...)
 	c.Stdout, c.Stderr = out, out
 	if err := c.Run(); err != nil {

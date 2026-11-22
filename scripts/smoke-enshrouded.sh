@@ -91,7 +91,7 @@ if $hold; then
   read -r -p "Server is up on UDP 15637. Connect with a game client, then press Enter to continue... " _ || true
 fi
 
-step "stop (SIGINT; the server saves on the way out)"
+step "stop (SIGINT, Ctrl+Break on Windows; the server saves on the way out)"
 marker="$work/before-stop"
 touch "$marker"
 sleep 1
