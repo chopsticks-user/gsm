@@ -180,7 +180,7 @@ Every change that will be committed goes through a GitHub issue and a pull reque
 
 GitHub enforces the parts that matter:
 
-- **`main` and `release-*`** can only change through a pull request whose `verify (Linux)` check passes, and can't be deleted or force-pushed. Merges are merge commits only (squash and rebase are off), and merged branches are deleted automatically. Admins can override a failing check when merging a pull request, but can't push to these branches directly.
+- **`main` and `release-*`** can only change through a pull request whose `verify (Linux)`, `test (windows-latest)` and `test (macos-latest)` checks pass, and can't be deleted or force-pushed. Merges are merge commits only (squash and rebase are off), and merged branches are deleted automatically. Admins can override a failing check when merging a pull request, but can't push to these branches directly.
 - **Release tags (`v*`)** can only be created by admins, and nobody can move or delete one, since pushing a tag publishes a release.
 - **Pull requests from outside contributors** run CI only after a maintainer approves the run.
 
