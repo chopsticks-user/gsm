@@ -24,6 +24,15 @@ inst="$home/instances/smoke"
 
 cleanup() {
   status=$?
+  if [ $status -ne 0 ] && [ -d "$home/instances" ]; then
+    [ -x "$gsm" ] && "$gsm" --home "$home" status || true
+    if ${windows:-false}; then
+      powershell -NoProfile -Command "Get-Process | Where-Object Name -like '*Pal*' | Format-Table Id,Name,StartTime; Get-NetUDPEndpoint | Where-Object LocalPort -gt 1024 | Format-Table LocalAddress,LocalPort,OwningProcess" || true
+    fi
+    for log in "$home"/instances/*/logs/server.log; do
+      [ -f "$log" ] && { echo "== last lines of $log"; tail -n 60 "$log"; }
+    done
+  fi
   [ -x "$gsm" ] && "$gsm" --home "$home" stop --all >/dev/null 2>&1 || true
   rm -rf "$work"
   if [ $status -eq 0 ]; then echo "PASS: smoke test"; else echo "FAIL: smoke test (exit $status)" >&2; fi

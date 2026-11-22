@@ -26,6 +26,12 @@ json="$inst/config/enshrouded_server.json"
 
 cleanup() {
   status=$?
+  if [ $status -ne 0 ] && [ -d "$home/instances" ]; then
+    [ -x "$gsm" ] && "$gsm" --home "$home" status || true
+    for log in "$home"/instances/*/logs/server.log; do
+      [ -f "$log" ] && { echo "== last lines of $log"; tail -n 60 "$log"; }
+    done
+  fi
   [ -x "$gsm" ] && "$gsm" --home "$home" stop --all >/dev/null 2>&1 || true
   rm -rf "$work"
   if [ $status -eq 0 ]; then echo "PASS: smoke test"; else echo "FAIL: smoke test (exit $status)" >&2; fi
