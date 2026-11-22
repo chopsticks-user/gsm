@@ -35,6 +35,17 @@ jobs:
       # it must also build with the current stable release's Go.
       - name: Nix package (stable nixpkgs)
         run: nix build --no-link .#default --override-input nixpkgs github:nixos/nixpkgs/nixos-26.05
+      # An overlay attribute nixpkgs already has would replace it for every
+      # package that depends on it (pkgs.gsm is the libgsm audio codec).
+      - name: Overlay adds only new attributes
+        run: |
+          nix eval --impure --expr '
+            let
+              flake = builtins.getFlake (toString ./.);
+              pkgs = flake.inputs.nixpkgs.legacyPackages.x86_64-linux;
+              clashes = builtins.filter (n: pkgs ? ${n}) (builtins.attrNames (flake.overlays.default pkgs pkgs));
+            in
+            if clashes == [ ] then "ok" else throw "overlay replaces nixpkgs attributes: ${toString clashes}"'
       # Fails on known vulnerabilities in code gsm actually calls, tests
       # included, for every OS it ships for (per-OS files differ). Separate
       # from verify because it needs the network for the vulnerability database.

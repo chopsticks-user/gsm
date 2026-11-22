@@ -117,7 +117,8 @@
       }
     )
     // {
-      # Built with the consumer's pkgs and Go, like any nixpkgs package.
-      overlays.default = final: _prev: { gsm = gsmFor final; };
+      # Built with the consumer's pkgs and Go, like any nixpkgs package. Not
+      # pkgs.gsm: nixpkgs already has that (the libgsm audio codec).
+      overlays.default = final: _prev: { gsm-cli = gsmFor final; };
     };
 }
