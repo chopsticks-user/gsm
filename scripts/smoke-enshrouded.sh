@@ -10,57 +10,10 @@
 # Needs steamcmd (and steam-run plus steamclient.so on NixOS, for steamcmd),
 # wine and ss (on Linux), git, and free UDP ports 15637 and 15638. On Windows
 # (Git Bash) the server runs natively; .github/workflows/smoke-windows.yml runs it there.
-set -euo pipefail
-cd "$(dirname "$0")/.."
-
-hold=false
-[ "${1:-}" = "--hold" ] && hold=true
-
-cache="${XDG_CACHE_HOME:-$HOME/.cache}"
-mkdir -p "$cache"
-work=$(mktemp -d "$cache/gsm-smoke-XXXXXX")
-home="$work/home"
-gsm="$work/gsm$(go env GOEXE)" # gsm.exe on Windows, which needs the extension to start it
+server_procs='*enshrouded*'
+. "$(dirname "$0")/smoke-lib.sh"
 inst="$home/instances/smoke"
 json="$inst/config/enshrouded_server.json"
-
-cleanup() {
-  status=$?
-  if [ $status -ne 0 ] && [ -d "$home/instances" ]; then
-    [ -x "$gsm" ] && "$gsm" --home "$home" status || true
-    for log in "$home"/instances/*/logs/server.log; do
-      [ -f "$log" ] && { echo "== last lines of $log"; tail -n 60 "$log"; }
-    done
-  fi
-  [ -x "$gsm" ] && "$gsm" --home "$home" stop --all >/dev/null 2>&1 || true
-  rm -rf "$work"
-  if [ $status -eq 0 ]; then echo "PASS: smoke test"; else echo "FAIL: smoke test (exit $status)" >&2; fi
-}
-trap cleanup EXIT
-
-step() { echo; echo "== $*"; }
-fail() { echo "FAIL: $*" >&2; exit 1; }
-g() { "$gsm" --home "$home" "$@"; }
-
-case "$(uname -s)" in MINGW* | MSYS* | CYGWIN*) windows=true ;; *) windows=false ;; esac
-# udp_listening <port>: ss on Linux, PowerShell on Windows (Git Bash).
-udp_listening() {
-  if $windows; then
-    powershell -NoProfile -Command "if (Get-NetUDPEndpoint -LocalPort $1 -ErrorAction SilentlyContinue) { exit 0 } else { exit 1 }"
-  else
-    ss -uln | grep -q ":$1 "
-  fi
-}
-
-# wait_for <seconds> <description> <command...>
-wait_for() {
-  local secs=$1 what=$2; shift 2
-  for _ in $(seq "$secs"); do
-    if "$@" >/dev/null 2>&1; then return 0; fi
-    sleep 1
-  done
-  fail "timed out after ${secs}s waiting for $what"
-}
 
 # The world save, not the server's rotating copies in backup/.
 world() { find "$inst/saves" -type f -not -path '*/backup/*' -print -quit; }
@@ -69,11 +22,7 @@ has_save() { [ -n "$(world)" ]; }
 world_hash() { find "$inst/saves" -type f -not -path '*/backup/*' -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1; }
 port_in_json() { grep -Eq "\"queryPort\"[[:space:]]*:[[:space:]]*$1([^0-9]|$)" "$2"; }
 
-$windows || command -v ss >/dev/null || fail "ss not found (iproute2)"
 [ "$(uname -s)" != Linux ] || command -v wine >/dev/null || fail "wine not found"
-
-step "build gsm"
-go build -o "$gsm" ./cmd/gsm
 
 step "doctor"
 g doctor

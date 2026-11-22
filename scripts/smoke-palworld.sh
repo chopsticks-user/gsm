@@ -6,79 +6,26 @@
 #   nix develop -c scripts/smoke-palworld.sh [--hold]
 #
 # --hold pauses while the server runs, so you can connect with a game client.
-# Needs steamcmd (and steam-run plus steamclient.so on NixOS), git, and a free
-# UDP port 8211. Also runs on Windows (Git Bash); see .github/workflows/smoke-windows.yml.
-set -euo pipefail
-cd "$(dirname "$0")/.."
-
-hold=false
-[ "${1:-}" = "--hold" ] && hold=true
-
-# Not under /tmp: on NixOS, steam-run gives the server a fresh /tmp.
-cache="${XDG_CACHE_HOME:-$HOME/.cache}"
-mkdir -p "$cache"
-work=$(mktemp -d "$cache/gsm-smoke-XXXXXX")
-home="$work/home"
-gsm="$work/gsm$(go env GOEXE)" # gsm.exe on Windows, which needs the extension to start it
+# Needs steamcmd (and steam-run plus steamclient.so on NixOS), git, ss (on
+# Linux) and a free UDP port 8213, not the default, so the test shows the
+# server takes -port. Also runs on Windows (Git Bash); see
+# .github/workflows/smoke-windows.yml.
+server_procs='*Pal*'
+port=8213 # not the default 8211, so the test shows the server takes -port
+. "$(dirname "$0")/smoke-lib.sh"
 inst="$home/instances/smoke"
-
-cleanup() {
-  status=$?
-  if [ $status -ne 0 ] && [ -d "$home/instances" ]; then
-    [ -x "$gsm" ] && "$gsm" --home "$home" status || true
-    if ${windows:-false}; then
-      powershell -NoProfile -Command "Get-Process | Where-Object Name -like '*Pal*' | Format-Table Id,Name,StartTime; Get-NetUDPEndpoint | Where-Object LocalPort -gt 1024 | Format-Table LocalAddress,LocalPort,OwningProcess" || true
-    fi
-    for log in "$home"/instances/*/logs/server.log; do
-      [ -f "$log" ] && { echo "== last lines of $log"; tail -n 60 "$log"; }
-    done
-  fi
-  [ -x "$gsm" ] && "$gsm" --home "$home" stop --all >/dev/null 2>&1 || true
-  rm -rf "$work"
-  if [ $status -eq 0 ]; then echo "PASS: smoke test"; else echo "FAIL: smoke test (exit $status)" >&2; fi
-}
-trap cleanup EXIT
-
-step() { echo; echo "== $*"; }
-fail() { echo "FAIL: $*" >&2; exit 1; }
-g() { "$gsm" --home "$home" "$@"; }
-
-case "$(uname -s)" in MINGW* | MSYS* | CYGWIN*) windows=true ;; *) windows=false ;; esac
-# udp_listening <port>: ss on Linux, PowerShell on Windows (Git Bash).
-udp_listening() {
-  if $windows; then
-    powershell -NoProfile -Command "if (Get-NetUDPEndpoint -LocalPort $1 -ErrorAction SilentlyContinue) { exit 0 } else { exit 1 }"
-  else
-    ss -uln | grep -q ":$1 "
-  fi
-}
-
-# wait_for <seconds> <description> <command...>
-wait_for() {
-  local secs=$1 what=$2; shift 2
-  for _ in $(seq "$secs"); do
-    if "$@" >/dev/null 2>&1; then return 0; fi
-    sleep 1
-  done
-  fail "timed out after ${secs}s waiting for $what"
-}
 
 # The log line on Linux; on Windows the server's console output may not reach the log.
 listening() {
-  if $windows; then udp_listening 8211; else grep -q "Running Palworld dedicated server" "$inst/logs/server.log"; fi
+  if $windows; then udp_listening $port; else grep -q "Running Palworld dedicated server" "$inst/logs/server.log"; fi
 }
 has_save() { [ -n "$(find "$inst/saves" -name Level.sav -not -path '*/backup/*' -print -quit)" ]; }
-
-$windows || command -v ss >/dev/null || fail "ss not found (iproute2)"
-
-step "build gsm"
-go build -o "$gsm" ./cmd/gsm
 
 step "doctor"
 g doctor
 
 step "create (downloads the server)"
-g create palworld smoke
+g create palworld smoke --port "$port"
 [ -L "$inst/server/Pal/Saved/SaveGames" ] || fail "saves are not linked into the install"
 settings="$inst/config/PalWorldSettings.ini"
 sed -i 's/ServerName="[^"]*"/ServerName="gsm smoke"/' "$settings"
@@ -87,14 +34,14 @@ grep -q 'ServerName="gsm smoke"' "$settings" || fail "couldn't edit ServerName i
 step "start"
 g start smoke
 wait_for 120 "the server to listen" listening
-udp_listening 8211 || fail "nothing listens on UDP 8211"
+$windows || udp_listening "$port" || fail "nothing listens on UDP $port" # on Windows, listening already checked it
 wait_for 300 "the first world save" has_save
 level=$(find "$inst/saves" -name Level.sav -not -path '*/backup/*' -print -quit)
 echo "world save: ${level#"$inst/"}"
 
 if $hold; then
   echo
-  read -r -p "Server is up on UDP 8211. Connect with a game client, then press Enter to continue... " _ || true
+  read -r -p "Server is up on UDP $port. Connect with a game client, then press Enter to continue... " _ || true
 fi
 
 step "snapshot while running (expect a save-flush warning)"
