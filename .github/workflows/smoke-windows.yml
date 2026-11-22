@@ -44,3 +44,33 @@ jobs:
         env:
           XDG_CACHE_HOME: ${{ runner.temp }}/smoke
         run: scripts/smoke-${{ matrix.game }}.sh
+
+  # TEMPORARY probe (remove before merge): can this runner run Palworld at all?
+  palworld-probe:
+    if: github.event_name == 'pull_request'
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - name: Probe
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://steamcdn-a.akamaihd.net/client/installer/steamcmd.zip -OutFile steamcmd.zip
+          Expand-Archive steamcmd.zip "$env:RUNNER_TEMP\steamcmd"
+          $sc = "$env:RUNNER_TEMP\steamcmd\steamcmd.exe"; $d = "$env:RUNNER_TEMP\pal"
+          & $sc +quit
+          & $sc +force_install_dir $d +login anonymous +app_update 2394010 validate +quit
+          if (-not (Test-Path "$d\PalServer.exe")) { & $sc +force_install_dir $d +login anonymous +app_update 2394010 validate +quit }
+          Get-ChildItem "$d\Pal\Binaries\Win64" | Select-Object Name
+          function Show($label) {
+            Start-Sleep 90
+            "== $label"
+            Get-Process | Where-Object Name -like '*Pal*' | Format-Table Id,Name,StartTime | Out-String
+            Get-NetUDPEndpoint -LocalPort 8211 -ErrorAction SilentlyContinue | Format-Table LocalAddress,LocalPort,OwningProcess | Out-String
+            Get-Process | Where-Object Name -like '*Pal*' | Stop-Process -Force
+            Start-Sleep 5
+          }
+          Start-Process "$d\PalServer.exe" -ArgumentList "-port=8211" ; Show "A: PalServer.exe, normal"
+          Start-Process "$d\PalServer.exe" -ArgumentList "-port=8211" -WindowStyle Hidden ; Show "B: PalServer.exe, hidden window"
+          Start-Process "$d\Pal\Binaries\Win64\PalServer-Win64-Shipping-Cmd.exe" -ArgumentList "Pal -port=8211" ; Show "C: shipping exe directly"
+          Get-ChildItem "$d\Pal\Saved\Logs" -ErrorAction SilentlyContinue | Select-Object Name,Length
+          Get-Content "$d\Pal\Saved\Logs\Pal.log" -Tail 40 -ErrorAction SilentlyContinue
