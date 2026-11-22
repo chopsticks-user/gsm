@@ -7,7 +7,7 @@
 #
 # --hold pauses while the server runs, so you can connect with a game client.
 # Needs steamcmd (and steam-run plus steamclient.so on NixOS), git, and a free
-# UDP port 8211.
+# UDP port 8211. Also runs on Windows (Git Bash); see .github/workflows/smoke-windows.yml.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -19,7 +19,7 @@ cache="${XDG_CACHE_HOME:-$HOME/.cache}"
 mkdir -p "$cache"
 work=$(mktemp -d "$cache/gsm-smoke-XXXXXX")
 home="$work/home"
-gsm="$work/gsm"
+gsm="$work/gsm$(go env GOEXE)" # gsm.exe on Windows, which needs the extension to start it
 inst="$home/instances/smoke"
 
 cleanup() {
@@ -34,6 +34,16 @@ step() { echo; echo "== $*"; }
 fail() { echo "FAIL: $*" >&2; exit 1; }
 g() { "$gsm" --home "$home" "$@"; }
 
+case "$(uname -s)" in MINGW* | MSYS* | CYGWIN*) windows=true ;; *) windows=false ;; esac
+# udp_listening <port>: ss on Linux, PowerShell on Windows (Git Bash).
+udp_listening() {
+  if $windows; then
+    powershell -NoProfile -Command "if (Get-NetUDPEndpoint -LocalPort $1 -ErrorAction SilentlyContinue) { exit 0 } else { exit 1 }"
+  else
+    ss -uln | grep -q ":$1 "
+  fi
+}
+
 # wait_for <seconds> <description> <command...>
 wait_for() {
   local secs=$1 what=$2; shift 2
@@ -44,8 +54,13 @@ wait_for() {
   fail "timed out after ${secs}s waiting for $what"
 }
 
-listening() { grep -q "Running Palworld dedicated server" "$inst/logs/server.log"; }
+# The log line on Linux; on Windows the server's console output may not reach the log.
+listening() {
+  if $windows; then udp_listening 8211; else grep -q "Running Palworld dedicated server" "$inst/logs/server.log"; fi
+}
 has_save() { [ -n "$(find "$inst/saves" -name Level.sav -not -path '*/backup/*' -print -quit)" ]; }
+
+$windows || command -v ss >/dev/null || fail "ss not found (iproute2)"
 
 step "build gsm"
 go build -o "$gsm" ./cmd/gsm
@@ -63,9 +78,7 @@ grep -q 'ServerName="gsm smoke"' "$settings" || fail "couldn't edit ServerName i
 step "start"
 g start smoke
 wait_for 120 "the server to listen" listening
-if command -v ss >/dev/null; then
-  ss -uln | grep ':8211 ' >/dev/null || fail "nothing listens on UDP 8211"
-fi
+udp_listening 8211 || fail "nothing listens on UDP 8211"
 wait_for 300 "the first world save" has_save
 level=$(find "$inst/saves" -name Level.sav -not -path '*/backup/*' -print -quit)
 echo "world save: ${level#"$inst/"}"
