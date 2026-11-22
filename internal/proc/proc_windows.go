@@ -28,8 +28,6 @@ const (
 	jobQuery             = 0x0004
 	jobTerminate         = 0x0008
 	jobBasicAccounting   = 1 // JobObjectBasicAccountingInformation
-	jobExtendedLimits    = 9 // JobObjectExtendedLimitInformation
-	jobBreakawayOK       = 0x800
 )
 
 var (
@@ -42,7 +40,6 @@ var (
 	procAssignToJob         = kernel32.NewProc("AssignProcessToJobObject")
 	procTerminateJob        = kernel32.NewProc("TerminateJobObject")
 	procQueryJob            = kernel32.NewProc("QueryInformationJobObject")
-	procSetJobInfo          = kernel32.NewProc("SetInformationJobObject")
 	// Undocumented but long stable: exec.Cmd doesn't expose the main thread to ResumeThread.
 	procNtResumeProcess = syscall.NewLazyDLL("ntdll.dll").NewProc("NtResumeProcess")
 )
@@ -155,7 +152,6 @@ func joinJob(st State, ph syscall.Handle) {
 		return
 	}
 	defer syscall.CloseHandle(syscall.Handle(job))
-	allowBreakaway(syscall.Handle(job))
 	if r, _, _ := procAssignToJob.Call(job, uintptr(ph)); r == 0 {
 		return
 	}
@@ -203,19 +199,16 @@ func jobActive(job syscall.Handle) bool {
 	return r != 0 && info.ActiveProcesses > 0
 }
 
-// kill ends the server two ways, since neither covers everything: taskkill
-// /T walks the tree by parent PID (reaching children that broke away from the
-// job, while their parent lives), then terminating the job reaches orphans.
-// Without a findable job, taskkill alone is all there is.
+// kill terminates the server's job, or falls back to taskkill /T, which
+// walks the tree by parent PID and so misses orphaned children.
 func kill(st State) error {
-	err := exec.Command("taskkill", "/T", "/F", "/PID", strconv.Itoa(st.PID)).Run()
 	if job := openJob(st, jobTerminate); job != 0 {
 		defer syscall.CloseHandle(job)
 		if r, _, _ := procTerminateJob.Call(uintptr(job), 1); r != 0 {
 			return nil
 		}
 	}
-	return err
+	return exec.Command("taskkill", "/T", "/F", "/PID", strconv.Itoa(st.PID)).Run()
 }
 
 // groupAlive reports whether the server's job still has a live process.
@@ -227,24 +220,4 @@ func groupAlive(st State) bool {
 	}
 	defer syscall.CloseHandle(job)
 	return jobActive(job)
-}
-
-// allowBreakaway lets a child started with CREATE_BREAKAWAY_FROM_JOB leave
-// the job instead of failing to start: Palworld's launcher starts its server
-// that way, and in a job without this it hangs without one. kill's taskkill
-// /T still reaches such a child while its parent lives.
-func allowBreakaway(job syscall.Handle) {
-	var info struct {
-		PerProcessUserTimeLimit, PerJobUserTimeLimit int64
-		LimitFlags                                   uint32
-		MinimumWorkingSetSize, MaximumWorkingSetSize uintptr
-		ActiveProcessLimit                           uint32
-		Affinity                                     uintptr
-		PriorityClass, SchedulingClass               uint32
-		IoCounters                                   [6]uint64
-		ProcessMemoryLimit, JobMemoryLimit           uintptr
-		PeakProcessMemoryUsed, PeakJobMemoryUsed     uintptr
-	}
-	info.LimitFlags = jobBreakawayOK
-	procSetJobInfo.Call(uintptr(job), jobExtendedLimits, uintptr(unsafe.Pointer(&info)), unsafe.Sizeof(info))
 }

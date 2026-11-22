@@ -61,7 +61,7 @@ Games are compiled into the binary, in `internal/game`. The code that installs, 
 | Field | Palworld | Enshrouded |
 |---|---|---|
 | Steam app ID | `2394010` | `2278520` |
-| Launch per OS | Linux: `PalServer.sh`; Windows: `PalServer.exe` | `enshrouded_server.exe`: through Wine on Linux, native on Windows |
+| Launch per OS | Linux: `PalServer.sh`; Windows: `Pal/Binaries/Win64/PalServer-Win64-Shipping-Cmd.exe` (the server itself; the `PalServer.exe` launcher doesn't start it on a headless Windows Server) | `enshrouded_server.exe`: through Wine on Linux, native on Windows |
 | Config in the install | folder `Pal/Saved/Config/LinuxServer` (or `WindowsServer`) | file `enshrouded_server.json`, port key `queryPort` |
 | Saves path in the install | `Pal/Saved/SaveGames` | `savegame` |
 | Args template | `-port={port} -players={players} -useperfthreads ...` | none |
