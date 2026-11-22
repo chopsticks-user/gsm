@@ -3,11 +3,12 @@ name: Smoke (Windows)
 # The real-server smoke tests on Windows: the same scripts as on Linux, run
 # with Git Bash against native Palworld and Enshrouded servers. They download
 # 5 to 15 GB per game, so they run by hand before a release, not on every PR
-# (and on PRs that change this workflow or the smoke scripts).
+# (and on PRs that change this workflow, the smoke scripts or the Windows
+# process code).
 on:
   workflow_dispatch:
   pull_request:
-    paths: [.github/workflows/smoke-windows.yml, scripts/smoke-*.sh]
+    paths: [.github/workflows/smoke-windows.yml, scripts/smoke-*.sh, internal/proc/*_windows.go]
 
 permissions:
   contents: read
