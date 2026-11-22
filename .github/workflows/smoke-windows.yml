@@ -35,7 +35,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v6
         with:
-          go-version-file: go.mod
+          go-version: stable # the latest Go, like the flake's Go that release binaries are built with
       - name: Install steamcmd
         shell: pwsh
         run: |

@@ -117,10 +117,7 @@
       }
     )
     // {
-      # This flake's own build (its pinned nixpkgs and Go), so vendorHash always
-      # matches the Go it was computed with, whatever Go the consumer has.
-      overlays.default = final: _prev: {
-        gsm = self.packages.${final.stdenv.hostPlatform.system}.default;
-      };
+      # Built with the consumer's pkgs and Go, like any nixpkgs package.
+      overlays.default = final: _prev: { gsm = gsmFor final; };
     };
 }

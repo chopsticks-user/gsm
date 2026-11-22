@@ -4,6 +4,10 @@ All notable changes to gsm are listed here. The format follows [Keep a Changelog
 
 ## [Unreleased]
 
+### Fixed
+
+- The flake's `overlays.default` builds gsm with the consumer's `pkgs` and Go, so `inputs.gsm.inputs.nixpkgs.follows` and other overlays apply. gsm now needs Go 1.26.0 or later instead of 1.26.10.
+
 ## [0.2.0] - 2026-11-22
 
 Enshrouded through Wine on Linux, Job Objects on Windows, versioned data formats, and a Nix flake.
