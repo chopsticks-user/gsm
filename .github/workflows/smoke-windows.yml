@@ -24,9 +24,6 @@ jobs:
     defaults:
       run:
         shell: bash
-    env:
-      # The scripts make their throwaway home here; runner.temp is on the large data drive.
-      XDG_CACHE_HOME: ${{ runner.temp }}/smoke
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v6
@@ -42,4 +39,7 @@ jobs:
           & "$env:RUNNER_TEMP\steamcmd\steamcmd.exe" +quit
           exit 0
       - name: Smoke test
+        # The scripts make their throwaway home here; runner.temp is on the large data drive.
+        env:
+          XDG_CACHE_HOME: ${{ runner.temp }}/smoke
         run: scripts/smoke-${{ matrix.game }}.sh
