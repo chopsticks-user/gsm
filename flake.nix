@@ -30,7 +30,7 @@
       gsmFor =
         pkgs:
         pkgs.buildGoModule {
-          pname = "gsm";
+          pname = "gsm-cli"; # nixpkgs' gsm is the libgsm audio codec
           version = "dev-${commit}";
           src = self;
           # Recomputed by scripts/update-vendorhash.sh when go.mod or go.sum change.
@@ -59,6 +59,17 @@
       in
       {
         packages.default = gsmFor pkgs;
+
+        # An overlay attribute nixpkgs already has would replace it for every
+        # package that depends on it.
+        checks.overlay =
+          let
+            clashes = builtins.filter (n: pkgs ? ${n}) (builtins.attrNames (self.overlays.default pkgs pkgs));
+          in
+          if clashes == [ ] then
+            pkgs.emptyFile
+          else
+            throw "overlay replaces nixpkgs attributes: ${toString clashes}";
 
         devShells.default = pkgs.mkShell {
           # git, steamcmd, steam-run and podman come from the host, not the shell
@@ -117,7 +128,8 @@
       }
     )
     // {
-      # Built with the consumer's pkgs and Go, like any nixpkgs package.
-      overlays.default = final: _prev: { gsm = gsmFor final; };
+      # Built with the consumer's pkgs and Go, like any nixpkgs package. Not
+      # pkgs.gsm: nixpkgs already has that (the libgsm audio codec).
+      overlays.default = final: _prev: { gsm-cli = gsmFor final; };
     };
 }

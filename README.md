@@ -48,7 +48,7 @@ just install                 # builds gsm into ~/.local/bin
 just install /usr/local/bin  # or another directory
 ```
 
-**With Nix**, the flake provides `packages.<system>.default` and an overlay that adds `gsm` to `pkgs`:
+**With Nix**, the flake provides `packages.<system>.default` and an overlay that adds `gsm-cli` to `pkgs` (`pkgs.gsm` in nixpkgs is an unrelated audio codec):
 
 ```nix
 # flake.nix of your system config
@@ -56,7 +56,7 @@ inputs.gsm.url = "github:chopsticks-user/gsm";
 inputs.gsm.inputs.nixpkgs.follows = "nixpkgs";
 # then, in a NixOS or Home Manager module
 nixpkgs.overlays = [ inputs.gsm.overlays.default ];
-environment.systemPackages = [ pkgs.gsm ];  # or home.packages
+environment.systemPackages = [ pkgs.gsm-cli ];  # or home.packages
 ```
 
 The overlay builds gsm with your `pkgs`, so your Go and your other overlays apply, like any nixpkgs package. It needs Go 1.26 or later. `nix run github:chopsticks-user/gsm -- version` tries it without installing.
