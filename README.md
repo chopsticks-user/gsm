@@ -59,7 +59,7 @@ nixpkgs.overlays = [ inputs.gsm.overlays.default ];
 environment.systemPackages = [ pkgs.gsm ];  # or home.packages
 ```
 
-The overlay builds gsm with your `pkgs`, so your Go and your other overlays apply, like any nixpkgs package. It needs Go 1.25 or later. `nix run github:chopsticks-user/gsm -- version` tries it without installing.
+The overlay builds gsm with your `pkgs`, so your Go and your other overlays apply, like any nixpkgs package. It needs Go 1.26 or later. `nix run github:chopsticks-user/gsm -- version` tries it without installing.
 
 To develop gsm, see [docs/development.md](docs/development.md).
 

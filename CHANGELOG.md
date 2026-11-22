@@ -6,7 +6,7 @@ All notable changes to gsm are listed here. The format follows [Keep a Changelog
 
 ### Fixed
 
-- The flake's `overlays.default` builds gsm with the consumer's `pkgs` and Go, so `inputs.gsm.inputs.nixpkgs.follows` and other overlays apply. gsm now needs Go 1.25 or later instead of 1.26.10.
+- The flake's `overlays.default` builds gsm with the consumer's `pkgs` and Go, so `inputs.gsm.inputs.nixpkgs.follows` and other overlays apply. gsm now needs Go 1.26.0 or later instead of 1.26.10.
 
 ## [0.2.0] - 2026-11-22
 
