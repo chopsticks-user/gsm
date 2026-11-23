@@ -4,6 +4,10 @@ All notable changes to gsm are listed here. The format follows [Keep a Changelog
 
 ## [Unreleased]
 
+### Added
+
+- `examples/` holds each game's stock default config (`examples/palworld/PalWorldSettings.ini`, `examples/enshrouded/enshrouded_server.json`) for reference, with the server build it came from.
+
 ### Changed
 
 - **Breaking:** the flake's overlay adds gsm as `pkgs.gsm-cli` instead of `pkgs.gsm`, and the Nix package is named `gsm-cli`; the binary is still `gsm`. `pkgs.gsm` is nixpkgs' libgsm audio codec, and replacing it broke every package that links it (ffmpeg, SDL3, GStreamer, Firefox). A config that keeps `pkgs.gsm` still builds without an error but installs the codec and no `gsm` command, so switch to `pkgs.gsm-cli`.
