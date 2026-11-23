@@ -41,3 +41,51 @@ func TestCommitDiffLog(t *testing.T) {
 		t.Fatalf("log %q, %v", log, err)
 	}
 }
+
+// Without a git identity, gsm commits as gsm so a fresh machine never fails
+// to commit; a configured identity is used as is.
+func TestCommitIdentity(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not installed")
+	}
+	global := filepath.Join(t.TempDir(), "gitconfig")
+	if err := os.WriteFile(global, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("GIT_CONFIG_GLOBAL", global)
+	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	for _, k := range []string{"GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL", "EMAIL"} {
+		t.Setenv(k, "") // restores the value after the test
+		os.Unsetenv(k)
+	}
+	dir := t.TempDir()
+	r, err := Init(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	author := func() string {
+		t.Helper()
+		out, err := r.git("log", "-1", "--format=%an <%ae>")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return strings.TrimSpace(out)
+	}
+	os.WriteFile(filepath.Join(dir, "a.ini"), []byte("x=1\n"), 0o644)
+	if ok, err := r.CommitAll("first"); !ok || err != nil {
+		t.Fatalf("commit without identity: %v %v", ok, err)
+	}
+	if got := author(); got != "gsm <gsm@localhost>" {
+		t.Fatalf("author without identity = %q", got)
+	}
+	if err := os.WriteFile(global, []byte("[user]\n\tname = Alice\n\temail = alice@example.com\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(filepath.Join(dir, "a.ini"), []byte("x=2\n"), 0o644)
+	if ok, err := r.CommitAll("second"); !ok || err != nil {
+		t.Fatalf("commit with identity: %v %v", ok, err)
+	}
+	if got := author(); got != "Alice <alice@example.com>" {
+		t.Fatalf("author with identity = %q", got)
+	}
+}
