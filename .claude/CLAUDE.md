@@ -15,6 +15,7 @@ Read the doc that matches the task before changing code, and update it in the sa
 - `docs/design.md`: why: goals, decisions with rejected alternatives, planned features, known limitations, open questions
 - `docs/roadmap.md`: the releases ahead (v0.2.0 to v1.0.0): theme, order and exit criteria each; GitHub milestones hold the issues
 - `docs/development.md`: dev shell, build, verify, test conventions, adding a game, versioning (patch rule, release branches, milestones), releasing, workflow, labels
+- `examples/`: each game's stock default config for reference (gsm doesn't read it), with the server build it came from in `examples/README.md`
 - Root files: `README.md` (overview, install), `CHANGELOG.md` (per release), `CONTRIBUTING.md` (for contributors, defers to development.md), `SECURITY.md` (vulnerability reporting), `CODE_OF_CONDUCT.md`, `LICENSE` (MIT)
 
 Each fact lives in one doc. The rules below are short forms of decisions in those docs, kept here because agents must follow them; change the doc first, then the rule.

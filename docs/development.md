@@ -118,6 +118,7 @@ Dependabot's Go module PRs get the fix automatically: `.github/workflows/vendorh
 2. If the game needs something the model lacks (a different launcher such as Wine, a config format gsm must edit, a save-flush method), extend the model in `internal/game` and the code that uses it in `cmd/gsm`, keeping existing games unchanged. Extend `validate` in `internal/game/game_test.go` to check the new fields.
 3. Run the tests: `TestBuiltinGamesAreValid` checks every game in `all` (names, app ID, platforms, paths that stay inside the install, config and saves dirs that don't overlap, port, stop timeout, every placeholder has a default and every default is used). Check the result with `gsm game show <game>`, then run the whole lifecycle against a real install: `create`, `start`, `status`, `stop`, `save restore`, `update`.
 4. Document the game in [guide.md](guide.md) and any new limitation in [design.md](design.md#known-limitations).
+5. Add the game's default config to [examples/](../examples) as `examples/<game>/<file name in config/>`, with generated secrets replaced by placeholders, and list it with its server build in `examples/README.md`.
 
 ## Versioning
 

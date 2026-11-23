@@ -108,7 +108,7 @@ Details: [Creating an instance](architecture.md#creating-an-instance), [LinkTo](
 
 ## Step 4: Edit the config
 
-Edit the files in `config/` directly:
+Each game's stock defaults are in [examples/](../examples) in the repo, to read before or after `create`. Edit the files in `config/` directly:
 
 ```
 $ $EDITOR ~/.local/share/gsm/instances/main/config/PalWorldSettings.ini
