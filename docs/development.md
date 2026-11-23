@@ -211,6 +211,7 @@ Keep docs in step with code, in the same PR:
 | [design.md](design.md) | why: goals, decisions and rejected alternatives, planned features, limitations, open questions |
 | [roadmap.md](roadmap.md) | the releases ahead: theme, order and exit criteria per milestone |
 | development.md | this file: dev environment, verify, tests, releasing, workflow |
+| [examples/](../examples) | each game's stock default config for reference, with the server build it came from |
 | [README.md](../README.md) | what gsm is, install, links into these docs |
 | [CHANGELOG.md](../CHANGELOG.md) | what changed in each release |
 | [CONTRIBUTING.md](../CONTRIBUTING.md) | how to report bugs, propose features and open pull requests (defers to this file) |
