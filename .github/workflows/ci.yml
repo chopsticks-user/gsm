@@ -25,7 +25,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: cachix/install-nix-action@v31
       # The same command as locally: scripts syntax, gofmt, go vet for
-      # Linux/Windows/macOS, and the race tests, end-to-end test included.
+      # Linux/Windows/macOS, and the race tests, the suites in tests/ included.
       - name: Verify
         run: nix develop -c scripts/verify.sh
       # The Nix package; fails on a stale vendorHash (fixed by vendorhash.yml on Dependabot PRs).
@@ -47,7 +47,7 @@ jobs:
           done
 
   # The Nix flake doesn't run on Windows, so these use the Go toolchain from
-  # go.mod directly. The race detector and the end-to-end test (unix only)
+  # go.mod directly. The race detector and the suites in tests/ (Linux only)
   # already run in the Linux job.
   test:
     name: test (${{ matrix.os }})

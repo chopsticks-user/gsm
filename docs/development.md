@@ -59,20 +59,25 @@ One command runs everything a change must pass:
 nix develop -c scripts/verify.sh
 ```
 
-It syntax-checks the shell scripts in `scripts/`, checks `gofmt` on every package, runs `go vet` for Linux, Windows and macOS, and runs `go test -race ./...`, which includes the end-to-end test. CI runs the same command. Run it before and after a change, and before merging.
+It syntax-checks the shell scripts in `scripts/`, checks `gofmt` on every package, runs `go vet` for Linux, Windows and macOS, and runs `go test -race ./...`, which includes the suites in `tests/`. CI runs the same command. Run it before and after a change, and before merging.
 
 ## Tests
 
-- **Real filesystem, no mocks.** Tests work in `t.TempDir()` folders.
+- **Unit tests next to the code.** A package's tests sit beside it in `<file>_test.go` files; Go runs tests only from files ending in `_test.go`. Only the suites that drive the gsm binary live in `tests/` ([below](#suites-that-drive-the-gsm-binary)).
+- **Real filesystem, no mocks.** Tests work in throwaway folders: `t.TempDir()`, or for the suites in `tests/`, a folder outside `/tmp` on NixOS ([below](#suites-that-drive-the-gsm-binary)).
 - **Fake processes by re-running the test binary.** A package's `TestMain` checks an environment variable and, when set, acts as a fake instead of running tests: an obedient server (exits on SIGTERM), a stubborn one (ignores it), a wrapper that starts a child like `PalServer.sh` does, optionally exiting early like `steam-run`, or a fake steamcmd. See `internal/proc/proc_test.go`. This works the same on every OS.
 - **OS branches as parameters.** Code like `$GSM_HOME` resolution takes the OS name and environment as arguments, so one machine can test every branch.
 - **Per-OS tests** go in `*_unix_test.go` or `*_windows_test.go`, next to the code.
 
-### End-to-end test
+### Suites that drive the gsm binary
 
-`cmd/gsm/e2e_test.go` drives the real CLI through a whole lifecycle: create (with a port conflict), start, `status --json`, `config diff`, restart with its auto-commit, a live snapshot, stop, restore over a corrupted save, update to a new build, and `addon add|remove`. No network, Steam or game is involved. The test binary plays every part, chosen by `GSM_E2E_ROLE`: gsm itself, a fake steamcmd that lays out a Palworld-shaped install, and a fake server (started through a `PalServer.sh` that runs it as a child, like the real one) that rewrites a save every 100 ms and writes a final save on SIGTERM. Shell shims named `steamcmd`, `steam-run` and `podman` come first on `PATH`, so gsm runs as in production; `podman` always fails, so no container is ever started. The test sets its own `HOME`, puts its data outside `/tmp` on NixOS, and stops every server it started, even when it fails; a fake server also exits on its own after two minutes, in case the test dies without its cleanup. It needs a POSIX shell and fakes Palworld's Linux install, so it builds only on Linux.
+`tests/` holds the suites that run gsm the way a user does, one package per suite: `tests/e2e` drives whole user journeys. Each suite's `TestMain` calls `harness.Main` from `tests/internal/harness`, which builds gsm from `cmd/gsm` once per suite run (with `-race` when the tests run with `-race`, so the race detector watches gsm too) and gives every test a throwaway home. No network, Steam or game is involved. The test binary plays the fakes, chosen by `GSM_TEST_ROLE`: a fake steamcmd that lays out a Palworld-shaped install, and a fake server (started through a `PalServer.sh` that runs it as a child, like the real one) that rewrites a save every 100 ms and writes a final save on SIGTERM. Shell shims named `steamcmd`, `steam-run` and `podman` come first on `PATH`, so gsm runs as in production; `podman` always fails, so no container is ever started. Each test gets its own `HOME`, keeps its data outside `/tmp` on NixOS, and stops every server it started, even when it fails; a fake server also exits on its own after two minutes, in case a test dies without its cleanup. The fakes need a POSIX shell and fake Palworld's Linux install, so the suites build only on Linux.
 
-An earlier end-to-end run like this found two bugs unit tests had missed: the early-exiting `steam-run` wrapper, and `steam-run` hiding `/tmp`. Behavior that spans processes deserves a step in this test.
+`go test` reuses a cached pass until the test binary or a file the test read changes. The suites don't import `cmd/gsm`, so the harness reads the source files of the gsm build (what `go list -deps` reports for `cmd/gsm`, plus `go.mod` and `go.sum`) and the variables it depends on (`GOFLAGS`, `CGO_ENABLED`, `GOEXPERIMENT`), and a change to any of them runs the suites again. `go test -count=1` runs any test again regardless.
+
+`tests/e2e/lifecycle_test.go` drives one Palworld server through its whole life: create (with a port conflict), start, `status --json`, `config diff`, restart with its auto-commit, a live snapshot, stop, restore over a corrupted save, update to a new build, and `addon add|remove`.
+
+An earlier end-to-end run like this found two bugs unit tests had missed: the early-exiting `steam-run` wrapper, and `steam-run` hiding `/tmp`. Behavior that spans processes deserves a step in these suites.
 
 On NixOS, keep test data out of `/tmp` when a test starts a server through `steam-run`, which hides `/tmp` from the server.
 
@@ -91,7 +96,7 @@ On Windows, the same two scripts run under Git Bash against the native servers: 
 
 ### CI
 
-`.github/workflows/ci.yml` runs verify through the flake on `ubuntu-latest` for every pull request and every push to `main`, the same command as locally. Alongside it, the `test` job runs `go test ./...` on `windows-latest` and `macos-latest` with the Go from `go.mod` (`actions/setup-go`), since the flake doesn't run on Windows. The race detector and the end-to-end test stay in the Linux job. Tests that need Unix signals live in `*_unix_test.go`; a fake server that must survive a stop request catches the signal and drops it, since `signal.Ignore` on Windows lets Ctrl+Break end the process.
+`.github/workflows/ci.yml` runs verify through the flake on `ubuntu-latest` for every pull request and every push to `main`, the same command as locally. Alongside it, the `test` job runs `go test ./...` on `windows-latest` and `macos-latest` with the Go from `go.mod` (`actions/setup-go`), since the flake doesn't run on Windows. The race detector and the suites in `tests/`, which build only on Linux, stay in the Linux job. Tests that need Unix signals live in `*_unix_test.go`; a fake server that must survive a stop request catches the signal and drops it, since `signal.Ignore` on Windows lets Ctrl+Break end the process.
 
 After verify, the Linux job runs `govulncheck -test ./...` for Linux, Windows and macOS, which fails on a known vulnerability in code gsm actually calls, tests included (one in a dependency function gsm never calls is reported but doesn't fail). It needs the network for the vulnerability database, so it's a CI step rather than part of verify. CI also runs weekly on a schedule, so a vulnerability published against unchanged code shows up without a pull request. Run it locally with `nix develop -c govulncheck -test ./...`.
 
