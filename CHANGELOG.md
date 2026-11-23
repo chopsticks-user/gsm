@@ -7,6 +7,7 @@ All notable changes to gsm are listed here. The format follows [Keep a Changelog
 ### Added
 
 - `examples/` holds each game's stock default config (`examples/palworld/PalWorldSettings.ini`, `examples/enshrouded/enshrouded_server.json`) for reference, with the server build it came from.
+- The guide explains how to move an instance, with its snapshots, to another machine by hand until `gsm recover` exists.
 
 ### Changed
 

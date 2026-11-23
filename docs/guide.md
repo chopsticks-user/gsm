@@ -238,6 +238,34 @@ main: added addon playit
 
 [playit.gg](https://playit.gg) makes a server reachable without port forwarding. The addon runs the playit agent as a podman container, started after the server and stopped before it. It needs podman and an env file at `~/.config/playit/env` containing `SECRET_KEY=...` from your playit account. gsm never copies that file and warns if it's missing. `gsm addon remove main playit` turns it off. Details: [Addons](architecture.md#addons).
 
+## Moving an instance to another machine
+
+There is no command for this yet: `gsm recover` ([#14](https://github.com/chopsticks-user/gsm/issues/14)) will replace these steps. Until then, copy the instance by hand. Everything it needs is under `$GSM_HOME` (shown by `gsm doctor`), and the server install and Wine prefix are left behind because `update` rebuilds them. On the old machine, from `$GSM_HOME`:
+
+```
+$ gsm stop main
+$ tar czf main.tgz --exclude=instances/main/server --exclude=instances/main/wine \
+    instances/main store/objects store/snapshots/main
+```
+
+That holds the instance definition, the config and its history, the live saves, the logs and every snapshot. `store/objects` is shared by all instances, so it also carries content only other instances use; that costs space but nothing else. On the new machine, from its `$GSM_HOME`:
+
+```
+$ tar xzf main.tgz --keep-old-files
+$ gsm update main
+main: snapshot 3ffa7707 (4 files, 33.4 KiB)
+  ... steamcmd output ...
+main: updated build none -> 25311802
+$ gsm start main
+```
+
+Until `update` has run, `start` stops with `server not installed; run: gsm update main`. `update` installs the server and links `config/` and `saves/` into it, and `save list main` shows the old machine's snapshots.
+
+- **An existing `$GSM_HOME`** is fine: snapshot objects are named by their content, so merging them can't clash, and `--keep-old-files` leaves the existing files alone. The new machine must not already have an instance with the same name.
+- **Ports** are not checked against the new machine's instances. If another instance there uses the same port, change `port` in `instance.toml` before starting.
+- **The playit env file** (`~/.config/playit/env`) is outside `$GSM_HOME`; copy it yourself if the instance uses the addon.
+- **Across OSes** snapshots and config work as they are. On Windows, use the built-in `tar` from the `%LOCALAPPDATA%\gsm` folder, and see [Enshrouded](#enshrouded) for the file symlink it needs.
+
 ## Enshrouded
 
 Everything above works the same for Enshrouded (`gsm create enshrouded <name>`); these are the differences.
