@@ -19,7 +19,7 @@ install dir="$HOME/.local/bin":
 build:
     go build -o build/ ./cmd/gsm
 
-# Run all tests with the race detector, the end-to-end test included
+# Run all tests with the race detector, the suites in tests/ included
 test:
     go test -race ./...
 

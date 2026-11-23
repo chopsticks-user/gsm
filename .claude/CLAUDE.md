@@ -30,7 +30,7 @@ Each fact lives in one doc. The rules below are short forms of decisions in thos
 - Only `cmd/gsm` prints or parses flags; `internal` packages return errors.
 - Approved Go modules: `github.com/BurntSushi/toml`, `github.com/klauspost/compress`. Ask before adding any other.
 - Never use `%APPDATA%` on Windows (roaming profile). On NixOS, `$GSM_HOME` can't be under `/tmp` when servers run through `steam-run`.
-- Tests use the real filesystem and fake processes by re-running the test binary from `TestMain` (see `internal/proc/proc_test.go`), never mocks.
+- Unit tests sit next to the code they test, in `_test.go` files; only suites that drive the built gsm binary live in `tests/`. Tests use the real filesystem and fake processes by re-running the test binary from `TestMain` (see `internal/proc/proc_test.go`), never mocks.
 
 ## Tooling
 
@@ -39,7 +39,7 @@ Go is not installed globally; use the flake's dev shell (details in `docs/develo
 - Build (all output goes to `build/`): `nix develop -c go build -o build/ ./cmd/gsm`; install: `just install [dir]`; Nix package: `nix build .#default`
 - Release binaries into `build/release/`: `nix develop -c scripts/release-build.sh v1.2.3`
 - Test: `nix develop -c go test -race ./...`
-- Verify (scripts syntax, gofmt, go vet for Linux/Windows/macOS, race tests including the end-to-end test; CI runs the same): `nix develop -c scripts/verify.sh`
+- Verify (scripts syntax, gofmt, go vet for Linux/Windows/macOS, race tests including the suites in `tests/`; CI runs the same): `nix develop -c scripts/verify.sh`
 - Smoke tests against the real servers (run before a release): `nix develop -c scripts/smoke-palworld.sh` (5 GB download) and `nix develop -c scripts/smoke-enshrouded.sh` (2 x 7.6 GB, needs wine)
 - Vulnerability scan (CI runs it for Linux, Windows and macOS; needs the network): `nix develop -c govulncheck -test ./...`
 - After changing Go dependencies, run `scripts/update-vendorhash.sh` (the Nix package's `vendorHash`; CI fixes it on Dependabot PRs)

@@ -42,7 +42,12 @@ internal/steam      steamcmd, build IDs, NixOS steamclient.so setup
 internal/gitrepo    thin wrapper over the git CLI
 internal/store      the snapshot store
 internal/addon      the playit tunnel
+tests/              suites that drive the built gsm binary (Linux only)
+  e2e                 whole user journeys
+  internal/harness    builds gsm for the suites; the fakes (steamcmd, server, shims) and helpers
 ```
+
+Unit tests sit next to the code they test.
 
 `cmd/gsm` is the only package that prints or reads flags. The `internal` packages return errors and take everything they need as parameters, so they can be tested without the CLI.
 
