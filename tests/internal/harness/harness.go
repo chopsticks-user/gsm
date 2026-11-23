@@ -62,6 +62,11 @@ func gsm(t *testing.T) string {
 }
 
 func build() (string, error) {
+	// Before building, so an edit made during the build reruns the suite next
+	// time instead of leaving a cached pass for code the binary lacks.
+	if err := readSources(); err != nil {
+		return "", err
+	}
 	dir, err := os.MkdirTemp("", "gsm-test-bin-")
 	if err != nil {
 		return "", err
@@ -75,18 +80,22 @@ func build() (string, error) {
 	if out, err := exec.Command("go", append(args, gsmPkg)...).CombinedOutput(); err != nil {
 		return "", fmt.Errorf("building gsm: %v\n%s", err, out)
 	}
-	return bin, readSources()
+	return bin, nil
 }
 
 // readSources reads every file the gsm build reads. go test caches a pass by
-// the test binary and the files the test read; the suites don't import
-// cmd/gsm, so without this a cached pass would hide a change to gsm.
+// the test binary and the files and variables the test read; the suites don't
+// import cmd/gsm, so without this a cached pass would hide a change to gsm.
 func readSources() error {
+	for _, k := range []string{"GOFLAGS", "CGO_ENABLED", "GOEXPERIMENT"} {
+		os.Getenv(k) // read only so go test records it: the gsm build uses it too
+	}
 	out, err := exec.Command("go", "list", "-deps", "-json=Dir,GoFiles,CgoFiles,EmbedFiles,Module", gsmPkg).Output()
 	if err != nil {
 		return fmt.Errorf("listing gsm's sources: %w", err)
 	}
 	var files []string
+	gomod := ""
 	for dec := json.NewDecoder(bytes.NewReader(out)); dec.More(); {
 		var p struct {
 			Dir                           string
@@ -105,7 +114,10 @@ func readSources() error {
 		for _, f := range append(append(p.GoFiles, p.CgoFiles...), p.EmbedFiles...) {
 			files = append(files, filepath.Join(p.Dir, f))
 		}
-		files = append(files, p.Module.GoMod, filepath.Join(filepath.Dir(p.Module.GoMod), "go.sum"))
+		gomod = p.Module.GoMod
+	}
+	if gomod != "" {
+		files = append(files, gomod, filepath.Join(filepath.Dir(gomod), "go.sum"))
 	}
 	for _, f := range files {
 		if _, err := os.ReadFile(f); err != nil {
@@ -246,7 +258,9 @@ type StatusRow struct {
 func (h *Home) Status() map[string]StatusRow {
 	h.t.Helper()
 	var rows []StatusRow
-	if err := json.Unmarshal([]byte(h.OK("status", "--json")), &rows); err != nil {
+	dec := json.NewDecoder(strings.NewReader(h.OK("status", "--json")))
+	dec.DisallowUnknownFields() // a renamed field in gsm's output fails here, not silently
+	if err := dec.Decode(&rows); err != nil {
 		h.t.Fatal(err)
 	}
 	m := map[string]StatusRow{}

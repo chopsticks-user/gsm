@@ -47,8 +47,6 @@ tests/              suites that drive the built gsm binary (Linux only)
   internal/harness    builds gsm for the suites; the fakes (steamcmd, server, shims) and helpers
 ```
 
-Unit tests sit next to the code they test.
-
 `cmd/gsm` is the only package that prints or reads flags. The `internal` packages return errors and take everything they need as parameters, so they can be tested without the CLI.
 
 Code that differs per OS lives in files the compiler picks by name or build tag: `*_unix.go`, `*_windows.go`, `*_linux.go`. Everything else is shared.
