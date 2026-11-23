@@ -17,7 +17,7 @@
       meta = {
         name = "gsm";
         ide = {
-          name = "VS Code";
+          name = "Code";
           exec = "code";
           icon = "vscode";
         };
