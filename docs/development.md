@@ -15,7 +15,7 @@ The flake is at the repo root. Nix copies only the files git tracks (never the `
 
 Entered from inside the repo, the shell keeps Go's module and build caches in a gitignored `.go/` at the repo root instead of `~/go` and `~/.cache/go-build`, and sets `GOFLAGS=-modcacherw` so `.go/` can be deleted normally. Entered from outside a git repo, it warns and leaves Go's defaults.
 
-`nix run .#install` adds a desktop entry, "VS Code (gsm)", that opens the repo in VS Code inside the shell, so gopls and the Go extension see the toolchain. `nix run .#uninstall` removes it. The entry is written to `~/.local/share/applications`; on an impermanent home it survives a reboot only if that folder is persisted. Close every VS Code window before using it, since `code` hands the folder to a running instance, which keeps its old environment.
+`nix run .#install` adds a desktop entry, "VS Code (gsm)", that opens the repo in VS Code inside the shell, so gopls and the Go extension see the toolchain. Its integrated terminals open your login shell (recorded at install time; run the install again after changing it) with the dev shell's environment, instead of the dev shell's bash. `nix run .#uninstall` removes it. The entry is written to `~/.local/share/applications`; on an impermanent home it survives a reboot only if that folder is persisted. Close every VS Code window before using it, since `code` hands the folder to a running instance, which keeps its old environment.
 
 Without Nix, any Go matching the `go` line in `go.mod` works; you'll also need gcc for `-race`.
 

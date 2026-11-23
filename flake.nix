@@ -103,11 +103,14 @@
               program = toString (
                 pkgs.writeShellScript "install" ''
                   PROJECT_PATH=$(realpath "''${1:-$(git rev-parse --show-toplevel)}")
+                  # nix develop sets SHELL to its own bash; VS Code terminals should open the login shell
+                  LOGIN_SHELL=$(getent passwd "$(id -un)" 2>/dev/null | cut -d: -f7)
+                  LOGIN_SHELL=''${LOGIN_SHELL:-$SHELL} # macOS has no getent
                   mkdir -p "${meta.desktopPath}"
                   cat > "${desktopEntry}" <<DESKTOP
                   [Desktop Entry]
                   Name=${meta.ide.name} (${meta.name})
-                  Exec=nix develop "$PROJECT_PATH" -c ${meta.ide.exec} "$PROJECT_PATH"
+                  Exec=nix develop "$PROJECT_PATH" -c env SHELL="$LOGIN_SHELL" ${meta.ide.exec} "$PROJECT_PATH"
                   Path=$PROJECT_PATH
                   Icon=${meta.ide.icon}
                   Type=Application
