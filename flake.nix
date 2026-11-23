@@ -104,7 +104,8 @@
                 pkgs.writeShellScript "install" ''
                   PROJECT_PATH=$(realpath "''${1:-$(git rev-parse --show-toplevel)}")
                   # nix develop sets SHELL to its own bash; VS Code terminals should open the login shell
-                  LOGIN_SHELL=$(getent passwd "$(id -un)" | cut -d: -f7)
+                  LOGIN_SHELL=$(getent passwd "$(id -un)" 2>/dev/null | cut -d: -f7)
+                  LOGIN_SHELL=''${LOGIN_SHELL:-$SHELL} # macOS has no getent
                   mkdir -p "${meta.desktopPath}"
                   cat > "${desktopEntry}" <<DESKTOP
                   [Desktop Entry]
