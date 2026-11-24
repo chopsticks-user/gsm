@@ -244,3 +244,36 @@ func TestLeaderExitsChildKeepsRunning(t *testing.T) {
 		t.Fatal("still running after Stop")
 	}
 }
+
+// A program that can't start leaves no state file behind.
+func TestLaunchMissingProgram(t *testing.T) {
+	sf := filepath.Join(t.TempDir(), "state.json")
+	if _, err := Launch(exec.Command(filepath.Join(t.TempDir(), "no-such-server")), sf, "main"); err == nil {
+		t.Fatal("Launch of a missing program succeeded")
+	}
+	if _, err := os.Stat(sf); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("state file after a failed launch: %v", err)
+	}
+}
+
+// If the state file can't be written, gsm could never find the server
+// again, so Launch stops it before returning the error. (Launch stops it at
+// once, before a wrapper could start a child, so a group can't be checked
+// here; Stop's group handling has its own tests above.)
+func TestLaunchStopsServerWhenStateUnwritable(t *testing.T) {
+	t.Skip("takes 15 s until #104: Launch stops the server before anything reaps it")
+	sf := filepath.Join(t.TempDir(), "missing-dir", "state.json")
+	c := exec.Command(os.Args[0])
+	c.Env = append(os.Environ(), "GSM_FAKE_SERVER=obedient")
+	if _, err := Launch(c, sf, "main"); err == nil {
+		t.Fatal("Launch with an unwritable state file succeeded")
+	}
+	done := make(chan error, 1)
+	go func() { done <- c.Wait() }()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		c.Process.Kill()
+		t.Fatal("the server is still running after the failed launch")
+	}
+}

@@ -123,3 +123,59 @@ func TestInstallGivesUpAfterOneRetry(t *testing.T) {
 		t.Fatalf("missing steamcmd: err %v, output %q", err, out.String())
 	}
 }
+
+// steamclient.so is looked up in Steam's own folder first, then
+// ~/.steam/steam, then steamcmd's; an empty file doesn't count.
+func TestFindSteamclient(t *testing.T) {
+	home := t.TempDir()
+	if _, err := FindSteamclient(home); err == nil || !strings.Contains(err.Error(), "run steamcmd once") {
+		t.Fatalf("no steamclient.so: err = %v", err)
+	}
+	put := func(content string, parts ...string) string {
+		p := filepath.Join(append([]string{home}, parts...)...)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	steamcmd := put("lib", ".steam", "steamcmd", "linux64", "steamclient.so")
+	put("", ".local", "share", "Steam", "linux64", "steamclient.so") // empty: skipped
+	if got, err := FindSteamclient(home); err != nil || got != steamcmd {
+		t.Fatalf("got %q, %v; want steamcmd's %q", got, err, steamcmd)
+	}
+	steam := put("lib", ".steam", "steam", "linux64", "steamclient.so")
+	if got, _ := FindSteamclient(home); got != steam {
+		t.Fatalf("got %q, want ~/.steam/steam's %q", got, steam)
+	}
+	first := put("lib", ".local", "share", "Steam", "linux64", "steamclient.so")
+	if got, _ := FindSteamclient(home); got != first {
+		t.Fatalf("got %q, want Steam's own %q", got, first)
+	}
+}
+
+func TestSetupNixOS(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir on Windows
+	if err := SetupNixOS(); err == nil {
+		t.Fatal("SetupNixOS without steamclient.so succeeded")
+	}
+	src := filepath.Join(home, ".local", "share", "Steam", "linux64", "steamclient.so")
+	if err := os.MkdirAll(filepath.Dir(src), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(src, []byte("steam's library"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for range 2 { // a second setup is a no-op copy, not an error
+		if err := SetupNixOS(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if b, err := os.ReadFile(filepath.Join(home, ".steam", "sdk64", "steamclient.so")); err != nil || string(b) != "steam's library" {
+		t.Fatalf("sdk64 copy = %q, %v", b, err)
+	}
+}

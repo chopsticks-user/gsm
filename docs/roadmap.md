@@ -63,6 +63,8 @@ Issues that don't fit any theme stay without a milestone until one fits, and are
 
 - [#74](https://github.com/chopsticks-user/gsm/issues/74) Game-specific tools as gsm subcommands, starting with save editing
 - [#75](https://github.com/chopsticks-user/gsm/issues/75) Run the Linux smoke tests in a container from CI
-- [#77](https://github.com/chopsticks-user/gsm/issues/77) Broaden the test suites and measure coverage, with sub-issues [#99](https://github.com/chopsticks-user/gsm/issues/99), [#100](https://github.com/chopsticks-user/gsm/issues/100), [#101](https://github.com/chopsticks-user/gsm/issues/101) and [#102](https://github.com/chopsticks-user/gsm/issues/102)
+- [#77](https://github.com/chopsticks-user/gsm/issues/77) Broaden the test suites and measure coverage, with sub-issues [#99](https://github.com/chopsticks-user/gsm/issues/99), [#100](https://github.com/chopsticks-user/gsm/issues/100) and [#102](https://github.com/chopsticks-user/gsm/issues/102)
 - [#78](https://github.com/chopsticks-user/gsm/issues/78) Project agent skills (gsm:*) for developer guidance and chores
 - [#79](https://github.com/chopsticks-user/gsm/issues/79) Narrow the Nix package source to the Go files
+- [#104](https://github.com/chopsticks-user/gsm/issues/104) A launch whose state file cannot be written hangs 15 s on an unreaped server
+- [#106](https://github.com/chopsticks-user/gsm/issues/106) gsm save restore with an empty ID restores the only snapshot
