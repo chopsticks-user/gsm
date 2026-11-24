@@ -67,7 +67,9 @@ func Running(stateFile, instance string) (State, bool, error) {
 }
 
 // Launch starts c detached from the terminal and records it in stateFile.
-// The caller sets c.Stdout/Stderr; stdin stays the null device.
+// The caller sets c.Stdout/Stderr; stdin stays the null device. If the
+// state file can't be written, Launch stops the server and returns its
+// State with the error, so the caller can check it is gone.
 func Launch(c *exec.Cmd, stateFile, instance string) (State, error) {
 	detach(c)
 	if err := c.Start(); err != nil {
@@ -76,19 +78,31 @@ func Launch(c *exec.Cmd, stateFile, instance string) (State, error) {
 	t, err := StartTime(c.Process.Pid)
 	if err != nil {
 		c.Process.Kill()
+		go c.Wait()
 		return State{}, err
 	}
 	st := State{Format: Format, PID: c.Process.Pid, Start: t, Instance: instance}
 	if err := afterStart(st); err != nil {
 		c.Process.Kill()
+		go c.Wait()
 		return State{}, err
 	}
 	b, _ := json.Marshal(st)
 	if err := fsutil.WriteAtomic(stateFile, b, 0o644); err != nil {
 		// Don't leave a server gsm can't find. SIGTERM, not the game's signal: the
-		// server has only just started, and a kill follows anyway.
-		Stop(st, syscall.SIGTERM, 5*time.Second)
-		return State{}, err
+		// server has only just started, and a kill follows anyway. Reap it as it
+		// exits: on Unix an unreaped zombie still counts as a group member, and
+		// Stop would wait out both its timeouts.
+		reaped := make(chan struct{})
+		go func() { c.Wait(); close(reaped) }()
+		if _, _, serr := Stop(st, syscall.SIGTERM, 5*time.Second); serr != nil {
+			return st, fmt.Errorf("%w; the server it started (pid %d) may still be running: %v", err, st.PID, serr)
+		}
+		select { // let Wait finish copying the server's last output
+		case <-reaped:
+		case <-time.After(2 * time.Second):
+		}
+		return st, err
 	}
 	return st, nil
 }

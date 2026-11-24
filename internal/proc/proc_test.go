@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -66,7 +67,13 @@ func TestMain(m *testing.M) {
 		}
 		os.Exit(0)
 	}
-	os.Exit(m.Run())
+	code := m.Run()
+	if runtime.GOOS == "windows" {
+		// Job holders started by the tests are copies of this binary and check
+		// their job every 2 s; let them exit, or go can't delete the binary.
+		time.Sleep(2500 * time.Millisecond)
+	}
+	os.Exit(code)
 }
 
 func launch(t *testing.T, mode, instance string, extraEnv ...string) (State, string) {
@@ -257,23 +264,26 @@ func TestLaunchMissingProgram(t *testing.T) {
 }
 
 // If the state file can't be written, gsm could never find the server
-// again, so Launch stops it before returning the error. (Launch stops it at
-// once, before a wrapper could start a child, so a group can't be checked
-// here; Stop's group handling has its own tests above.)
+// again, so Launch stops it, quickly, before returning the error. (Launch
+// stops it at once, before a wrapper could start a child, so a group can't
+// be checked here; Stop's group handling has its own tests above.)
 func TestLaunchStopsServerWhenStateUnwritable(t *testing.T) {
-	t.Skip("takes 15 s until #104: Launch stops the server before anything reaps it")
 	sf := filepath.Join(t.TempDir(), "missing-dir", "state.json")
 	c := exec.Command(os.Args[0])
 	c.Env = append(os.Environ(), "GSM_FAKE_SERVER=obedient")
-	if _, err := Launch(c, sf, "main"); err == nil {
+	start := time.Now()
+	st, err := Launch(c, sf, "main")
+	if err == nil {
 		t.Fatal("Launch with an unwritable state file succeeded")
 	}
-	done := make(chan error, 1)
-	go func() { done <- c.Wait() }()
-	select {
-	case <-done:
-	case <-time.After(5 * time.Second):
-		c.Process.Kill()
-		t.Fatal("the server is still running after the failed launch")
+	// Under the 5 s stop wait: an unreaped zombie used to hold it to 15 s.
+	if d := time.Since(start); d >= 5*time.Second {
+		t.Fatalf("Launch took %v to fail", d)
+	}
+	// PID plus start time, so a reused PID can't fool it, and the whole
+	// group (the job on Windows).
+	if st.PID == 0 || ServerAlive(st) {
+		kill(st)
+		t.Fatalf("the server is still running after the failed launch (state %+v)", st)
 	}
 }
