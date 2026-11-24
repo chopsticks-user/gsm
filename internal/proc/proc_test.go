@@ -269,13 +269,20 @@ func TestLaunchStopsServerWhenStateUnwritable(t *testing.T) {
 	if err == nil {
 		t.Fatal("Launch with an unwritable state file succeeded")
 	}
-	// Well under the 5 s stop wait: an unreaped zombie used to hold it to 15 s.
-	if d := time.Since(start); d > 3*time.Second {
+	// Under the 5 s stop wait: an unreaped zombie used to hold it to 15 s.
+	if d := time.Since(start); d >= 5*time.Second {
 		t.Fatalf("Launch took %v to fail", d)
 	}
-	// Launch reaps the server itself, so it must be gone by now.
-	if _, err := StartTime(c.Process.Pid); err == nil {
-		c.Process.Kill()
-		t.Fatal("the server is still running after the failed launch")
+	// Launch reaps the server itself. Ask through the process handle, which a
+	// reused PID can't fool.
+	for i := 0; ; i++ {
+		if errors.Is(c.Process.Signal(syscall.Signal(0)), os.ErrProcessDone) {
+			return
+		}
+		if i == 40 {
+			c.Process.Kill()
+			t.Fatal("the server is still running after the failed launch")
+		}
+		time.Sleep(50 * time.Millisecond)
 	}
 }

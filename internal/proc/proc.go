@@ -76,21 +76,30 @@ func Launch(c *exec.Cmd, stateFile, instance string) (State, error) {
 	t, err := StartTime(c.Process.Pid)
 	if err != nil {
 		c.Process.Kill()
+		go c.Wait()
 		return State{}, err
 	}
 	st := State{Format: Format, PID: c.Process.Pid, Start: t, Instance: instance}
 	if err := afterStart(st); err != nil {
 		c.Process.Kill()
+		go c.Wait()
 		return State{}, err
 	}
 	b, _ := json.Marshal(st)
 	if err := fsutil.WriteAtomic(stateFile, b, 0o644); err != nil {
 		// Don't leave a server gsm can't find. SIGTERM, not the game's signal: the
 		// server has only just started, and a kill follows anyway. Reap it as it
-		// exits: an unreaped zombie still counts as a group member, and Stop would
-		// wait out both its timeouts.
-		go c.Wait()
-		Stop(st, syscall.SIGTERM, 5*time.Second)
+		// exits: on Unix an unreaped zombie still counts as a group member, and
+		// Stop would wait out both its timeouts.
+		reaped := make(chan struct{})
+		go func() { c.Wait(); close(reaped) }()
+		if _, _, serr := Stop(st, syscall.SIGTERM, 5*time.Second); serr != nil {
+			return State{}, fmt.Errorf("%w; the server it started (pid %d) may still be running: %v", err, st.PID, serr)
+		}
+		select { // let Wait finish copying the server's last output
+		case <-reaped:
+		case <-time.After(2 * time.Second):
+		}
 		return State{}, err
 	}
 	return st, nil
