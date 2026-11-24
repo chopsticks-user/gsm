@@ -29,9 +29,8 @@ func TestLauncherExitsServerKeepsRunning(t *testing.T) {
 	if !st.Running {
 		t.Fatalf("status = %+v, want running", st)
 	}
-	if syscall.Kill(st.PID, 0) == nil {
-		t.Fatalf("the launched process %d still exists; the test needs it gone", st.PID)
-	}
+	// gsm reaps the launcher; once gsm exits, init does if gsm hadn't yet.
+	harness.WaitFor(t, "the launched process to be gone", func() bool { return syscall.Kill(st.PID, 0) != nil })
 	if syscall.Kill(-st.PID, 0) != nil {
 		t.Fatalf("process group %d is gone, but status says running", st.PID)
 	}

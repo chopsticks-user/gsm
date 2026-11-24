@@ -3,9 +3,12 @@
 package integration
 
 import (
+	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -33,50 +36,53 @@ func TestStoreLockAcrossProcesses(t *testing.T) {
 	}
 
 	// This test process plays another gsm holding the lock.
-	unlock, err := store.Store{Dir: filepath.Join(h.Dir, "store")}.Lock(time.Second)
+	storeDir := filepath.Join(h.Dir, "store")
+	held, err := store.Store{Dir: storeDir}.Lock(time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}
+	unlock := sync.OnceFunc(held) // a second call must not delete a lock gsm took since
+	t.Cleanup(unlock)
+	var output bytes.Buffer // read only after Wait returns
 	waiter := h.Command(nil, "save", "snapshot", "main", "-m", "waited")
-	out, err := waiter.StdoutPipe()
-	if err != nil {
-		t.Fatal(err)
-	}
+	waiter.Stdout, waiter.Stderr = &output, &output
 	if err := waiter.Start(); err != nil {
-		unlock()
 		t.Fatal(err)
 	}
 	done := make(chan error, 1)
-	var output strings.Builder
-	go func() {
-		b := make([]byte, 4096)
-		for {
-			n, err := out.Read(b)
-			output.Write(b[:n])
-			if err != nil {
-				break
-			}
+	go func() { done <- waiter.Wait() }()
+	// Registered after the unlock cleanup, so it runs first.
+	t.Cleanup(func() {
+		select {
+		case <-done:
+		default:
+			waiter.Process.Kill()
+			<-done
 		}
-		done <- waiter.Wait()
-	}()
+	})
+	// The waiter's lock.tmp-* file shows it reached Lock: the test's own
+	// Lock removed its temp file before returning.
+	harness.WaitFor(t, "gsm save snapshot to reach the lock", func() bool {
+		m, _ := filepath.Glob(filepath.Join(storeDir, "lock.tmp-*"))
+		return len(m) > 0
+	})
 	select {
 	case err := <-done:
-		unlock()
+		done <- err
 		t.Fatalf("gsm save snapshot didn't wait for the lock (err %v):\n%s", err, output.String())
-	case <-time.After(time.Second):
+	case <-time.After(500 * time.Millisecond):
 	}
 	if n := records(); n != 0 {
-		unlock()
 		t.Fatalf("%d snapshot records written while another process held the lock", n)
 	}
 	unlock()
 	select {
 	case err := <-done:
+		done <- err
 		if err != nil {
 			t.Fatalf("gsm save snapshot after the lock was released: %v\n%s", err, output.String())
 		}
 	case <-time.After(10 * time.Second):
-		waiter.Process.Kill()
 		t.Fatal("gsm save snapshot still waiting after the lock was released")
 	}
 	harness.MustContain(t, output.String(), "main: snapshot")
@@ -88,7 +94,7 @@ func TestStoreLockAcrossProcesses(t *testing.T) {
 		go func() {
 			o, err := h.Run(nil, "save", "snapshot", "main")
 			if err != nil {
-				err = &runError{err, o}
+				err = fmt.Errorf("gsm save snapshot: %v\n%s", err, o)
 			}
 			errs <- err
 		}()
@@ -126,10 +132,3 @@ func TestStoreLockAcrossProcesses(t *testing.T) {
 		t.Fatalf("restored save = %q", got)
 	}
 }
-
-type runError struct {
-	err error
-	out string
-}
-
-func (e *runError) Error() string { return "gsm save snapshot: " + e.err.Error() + "\n" + e.out }
