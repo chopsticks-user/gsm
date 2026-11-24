@@ -194,3 +194,41 @@ func TestCopyFileReplacesReadOnlyDestination(t *testing.T) {
 		t.Fatalf("leftover files after a copy: %v", entries)
 	}
 }
+
+// A link that already points at target is left exactly as it is.
+func TestLinkToKeepsCorrectLink(t *testing.T) {
+	d := t.TempDir()
+	path, target := filepath.Join(d, "server", "Saves"), filepath.Join(d, "saves")
+	write(t, filepath.Join(target, "a.sav"), "world")
+	if err := LinkTo(path, target); err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.Lstat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := LinkTo(path, target); err != nil {
+		t.Fatal(err)
+	}
+	after, err := os.Lstat(path)
+	if err != nil || !os.SameFile(before, after) {
+		t.Fatalf("the link was replaced (err %v)", err)
+	}
+	if read(t, filepath.Join(target, "a.sav")) != "world" {
+		t.Fatal("target changed")
+	}
+}
+
+// A regular file where the link belongs is an error, and stays untouched.
+func TestLinkToRefusesFile(t *testing.T) {
+	d := t.TempDir()
+	path, target := filepath.Join(d, "server", "Saves"), filepath.Join(d, "saves")
+	write(t, path, "not a folder")
+	err := LinkTo(path, target)
+	if err == nil || !strings.Contains(err.Error(), "is a file, expected a directory") {
+		t.Fatalf("err = %v", err)
+	}
+	if read(t, path) != "not a folder" {
+		t.Fatal("the file was changed")
+	}
+}
