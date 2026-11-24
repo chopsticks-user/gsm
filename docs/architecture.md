@@ -44,6 +44,7 @@ internal/store      the snapshot store
 internal/addon      the playit tunnel
 tests/              suites that drive the built gsm binary (Linux only)
   e2e                 whole user journeys
+  integration         one cross-process guarantee at a time (process groups, the store lock, cleanup)
   internal/harness    builds gsm for the suites; the fakes (steamcmd, server, shims) and helpers
 ```
 

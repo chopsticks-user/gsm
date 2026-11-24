@@ -26,7 +26,14 @@ const (
 // either game, so a gsm that asks for the wrong build fails the test. With
 // $GSM_TEST_CLOBBER set it first replaces Palworld's saves link with a real
 // folder holding a stock save, as a validate restoring stock files would.
+// With $GSM_TEST_STEAMCMD_FAIL set it fails without installing anything.
+// The PalServer.sh it writes starts the server in the background and exits
+// when $GSM_TEST_DETACH is set, like steam-run does.
 func fakeSteamcmd(args []string) int {
+	if os.Getenv("GSM_TEST_STEAMCMD_FAIL") != "" {
+		fmt.Fprintln(os.Stderr, "fake steamcmd: failing as asked")
+		return 1
+	}
 	var dir, platform, app string
 	for i, a := range args {
 		if i+1 >= len(args) {
@@ -80,7 +87,7 @@ func fakeSteamcmd(args []string) int {
 		files = map[string]string{
 			"steamapps/appmanifest_2394010.acf": manifest,
 			// Like the real PalServer.sh, it runs the server as a child, not exec.
-			"PalServer.sh":                "#!/bin/sh\nGSM_TEST_ROLE=server \"" + exe + "\" \"$@\"\n",
+			"PalServer.sh":                "#!/bin/sh\nif [ -n \"$GSM_TEST_DETACH\" ]; then\n\tGSM_TEST_ROLE=server \"" + exe + "\" \"$@\" &\n\texit 0\nfi\nGSM_TEST_ROLE=server \"" + exe + "\" \"$@\"\n",
 			"DefaultPalWorldSettings.ini": "[/Script/Pal.PalGameWorldSettings]\nOptionSettings=(ServerName=\"Default\")\n",
 		}
 	case app == "2278520" && platform == "windows":
