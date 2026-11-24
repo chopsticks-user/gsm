@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -66,7 +67,13 @@ func TestMain(m *testing.M) {
 		}
 		os.Exit(0)
 	}
-	os.Exit(m.Run())
+	code := m.Run()
+	if runtime.GOOS == "windows" {
+		// Job holders started by the tests are copies of this binary and check
+		// their job every 2 s; let them exit, or go can't delete the binary.
+		time.Sleep(2500 * time.Millisecond)
+	}
+	os.Exit(code)
 }
 
 func launch(t *testing.T, mode, instance string, extraEnv ...string) (State, string) {
