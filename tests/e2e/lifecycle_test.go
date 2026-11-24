@@ -15,6 +15,7 @@ import (
 // (with a port conflict), start, status, config history, a live snapshot,
 // restart, stop, restore, update and addons.
 func TestLifecycle(t *testing.T) {
+	t.Parallel()
 	h := harness.New(t)
 	save := h.Inst("main", "saves", harness.World, "Level.sav")
 	settings := h.Inst("main", "config", "PalWorldSettings.ini")

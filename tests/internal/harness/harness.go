@@ -4,9 +4,10 @@
 // It builds the gsm binary from cmd/gsm once per test run and gives each test
 // a throwaway home with fakes for everything outside gsm. The test binary
 // plays the fakes, picked by GSM_TEST_ROLE (see fakes.go), and tiny shell
-// shims named steamcmd, steam-run and podman put them first on PATH, so gsm
-// runs exactly as in production. The shims need a POSIX shell and the fake
-// install is Palworld's Linux one, hence linux.
+// shims named steamcmd, steam-run, podman and wine put them first on PATH, so
+// gsm runs exactly as in production. The shims need a POSIX shell and the
+// fakes stand in for the Linux launches (Enshrouded's through Wine), hence
+// linux.
 package harness
 
 import (
@@ -174,6 +175,8 @@ func New(t *testing.T) *Home {
 		"steamcmd":  "#!/bin/sh\nGSM_TEST_ROLE=steamcmd exec \"" + exe + "\" \"$@\"\n",
 		"steam-run": "#!/bin/sh\nexec \"$@\"\n",
 		"podman":    "#!/bin/sh\nexit 1\n", // no container ever exists or starts
+		// gsm runs "wine <server.exe> <args>"; the fake server plays Enshrouded.
+		"wine": "#!/bin/sh\nGSM_TEST_ROLE=server GSM_TEST_GAME=enshrouded exec \"" + exe + "\" \"$@\"\n",
 	}
 	if err := os.MkdirAll(shimDir, 0o755); err != nil {
 		t.Fatal(err)
@@ -211,11 +214,17 @@ func New(t *testing.T) *Home {
 	return h
 }
 
-// Run runs gsm with args and extra environment, returning stdout and stderr.
-func (h *Home) Run(extraEnv []string, args ...string) (string, error) {
+// Command returns gsm with args and extra environment, ready to start, for
+// a command the test runs alongside others (gsm run).
+func (h *Home) Command(extraEnv []string, args ...string) *exec.Cmd {
 	c := exec.Command(h.gsm, append([]string{"--home", h.Dir}, args...)...)
 	c.Env = append(append([]string{}, h.env...), extraEnv...)
-	out, err := c.CombinedOutput()
+	return c
+}
+
+// Run runs gsm with args and extra environment, returning stdout and stderr.
+func (h *Home) Run(extraEnv []string, args ...string) (string, error) {
+	out, err := h.Command(extraEnv, args...).CombinedOutput()
 	return string(out), err
 }
 
