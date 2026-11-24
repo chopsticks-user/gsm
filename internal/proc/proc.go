@@ -86,7 +86,10 @@ func Launch(c *exec.Cmd, stateFile, instance string) (State, error) {
 	b, _ := json.Marshal(st)
 	if err := fsutil.WriteAtomic(stateFile, b, 0o644); err != nil {
 		// Don't leave a server gsm can't find. SIGTERM, not the game's signal: the
-		// server has only just started, and a kill follows anyway.
+		// server has only just started, and a kill follows anyway. Reap it as it
+		// exits: an unreaped zombie still counts as a group member, and Stop would
+		// wait out both its timeouts.
+		go c.Wait()
 		Stop(st, syscall.SIGTERM, 5*time.Second)
 		return State{}, err
 	}

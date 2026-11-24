@@ -15,6 +15,7 @@ All notable changes to gsm are listed here. The format follows [Keep a Changelog
 
 ### Fixed
 
+- A `start` or `run` whose `state.json` can't be written fails within a second instead of hanging for 15 s, and the server it started is stopped as before.
 - The VS Code desktop entry from `nix run .#install` opens integrated terminals in your login shell instead of the dev shell's bash. Run the install again to update an existing entry.
 - The flake's `overlays.default` builds gsm with the consumer's `pkgs` and Go, so `inputs.gsm.inputs.nixpkgs.follows` and other overlays apply. gsm now needs Go 1.26.0 or later instead of 1.26.10.
 
