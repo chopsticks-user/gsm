@@ -30,12 +30,16 @@ coverage:
     out="$PWD/build/coverage"
     rm -rf "$out"
     mkdir -p "$out/raw"
-    pkgs=github.com/chopsticks-user/gsm/cmd/...,github.com/chopsticks-user/gsm/internal/...
+    export GSM_TEST_COVERPKG=github.com/chopsticks-user/gsm/cmd/...,github.com/chopsticks-user/gsm/internal/...
     # Unit tests write raw counters with -test.gocoverdir; the suites' gsm, built with -cover, with GOCOVERDIR.
-    if ! GSM_TEST_COVERDIR="$out/raw" go test -count=1 -cover -coverpkg="$pkgs" ./... -args -test.gocoverdir="$out/raw" >"$out/test.log" 2>&1; then
+    if ! GSM_TEST_COVERDIR="$out/raw" go test -count=1 -v -cover -coverpkg="$GSM_TEST_COVERPKG" ./... -args -test.gocoverdir="$out/raw" >"$out/test.log" 2>&1; then
         cat "$out/test.log"
         echo "tests failed; no coverage reported" >&2
         exit 1
+    fi
+    # A skipped suite (no git, say) would lower the numbers without failing.
+    if grep -- '--- SKIP' "$out/test.log"; then
+        echo "the tests above were skipped and count for nothing"
     fi
     go tool covdata percent -i="$out/raw" | sed 's#github.com/chopsticks-user/gsm/##'
     go tool covdata textfmt -i="$out/raw" -o "$out/coverage.out"

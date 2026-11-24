@@ -25,14 +25,12 @@ import (
 	"time"
 )
 
-const (
-	gsmPkg    = "github.com/chopsticks-user/gsm/cmd/gsm"
-	coverPkgs = "github.com/chopsticks-user/gsm/cmd/...,github.com/chopsticks-user/gsm/internal/..."
-)
+const gsmPkg = "github.com/chopsticks-user/gsm/cmd/gsm"
 
-// coverDir, set by just coverage, makes the suites build gsm with coverage
-// and have every gsm process write its counters there (GOCOVERDIR).
-var coverDir = os.Getenv("GSM_TEST_COVERDIR")
+// coverDir, from GSM_TEST_COVERDIR (set by just coverage), makes the suites
+// build gsm with coverage of GSM_TEST_COVERPKG and have every gsm process
+// write its counters there (GOCOVERDIR). build sets it.
+var coverDir string
 
 // Main is a suite's TestMain: it plays a fake when the test binary was
 // started as one, and otherwise runs the tests.
@@ -85,8 +83,18 @@ func build() (string, error) {
 	if raceEnabled { // so the processes the tests start keep the race detector
 		args = append(args, "-race")
 	}
-	if coverDir != "" { // just coverage: count what the suites' gsm runs
-		args = append(args, "-cover", "-coverpkg="+coverPkgs)
+	if d := os.Getenv("GSM_TEST_COVERDIR"); d != "" { // just coverage: count what the suites' gsm runs
+		// Absolute, since every gsm runs in its own folder, and existing.
+		if coverDir, err = filepath.Abs(d); err == nil {
+			err = os.MkdirAll(coverDir, 0o755)
+		}
+		if err != nil {
+			return "", err
+		}
+		args = append(args, "-cover")
+		if pkgs := os.Getenv("GSM_TEST_COVERPKG"); pkgs != "" {
+			args = append(args, "-coverpkg="+pkgs)
+		}
 	}
 	if out, err := exec.Command("go", append(args, gsmPkg)...).CombinedOutput(); err != nil {
 		return "", fmt.Errorf("building gsm: %v\n%s", err, out)
@@ -98,7 +106,7 @@ func build() (string, error) {
 // the test binary and the files and variables the test read; the suites don't
 // import cmd/gsm, so without this a cached pass would hide a change to gsm.
 func readSources() error {
-	for _, k := range []string{"GOFLAGS", "CGO_ENABLED", "GOEXPERIMENT", "GSM_TEST_COVERDIR"} {
+	for _, k := range []string{"GOFLAGS", "CGO_ENABLED", "GOEXPERIMENT"} {
 		os.Getenv(k) // read only so go test records it: the gsm build uses it too
 	}
 	out, err := exec.Command("go", "list", "-deps", "-json=Dir,GoFiles,CgoFiles,EmbedFiles,Module", gsmPkg).Output()
