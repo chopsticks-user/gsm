@@ -216,7 +216,7 @@ main: safety snapshot 85c597d3
 main: restored snapshot 3735cbf0 from 2026-11-19 19:50:01
 ```
 
-IDs can be shortened to any unique prefix (`gsm save restore main 3735`). Restore requires the server to be stopped. It first snapshots the current saves, so a restore can always be undone by restoring that safety snapshot. It checks every file against the snapshot before touching the live saves, and a crash at any point is repaired on the next restore. Details: [Restore](architecture.md#restore).
+IDs can be shortened to any unique prefix (`gsm save restore main 3735`); an empty or blank ID is an error. Restore requires the server to be stopped. It first snapshots the current saves, so a restore can always be undone by restoring that safety snapshot. It checks every file against the snapshot before touching the live saves, and a crash at any point is repaired on the next restore. Details: [Restore](architecture.md#restore).
 
 ## Step 12: Update the server
 

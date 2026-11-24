@@ -334,7 +334,7 @@ Commands that write to the store take it: `save snapshot`, the automatic snapsho
 
 ### Restore
 
-`save restore` refuses while the server runs. IDs can be any unique prefix. Under the store lock:
+`save restore` refuses while the server runs. IDs can be any unique, non-blank prefix; a blank one is an error rather than a prefix of every ID. Under the store lock:
 
 1. **Repair an interrupted earlier restore** (table below).
 2. **Safety snapshot** of the current saves, trigger `restore`, message `before restoring <id>`.

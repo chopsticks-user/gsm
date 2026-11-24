@@ -339,8 +339,12 @@ func (s Store) List(instance string) ([]Record, error) {
 	return out, nil
 }
 
-// Get finds a snapshot by ID or unique ID prefix.
+// Get finds a snapshot by ID or unique ID prefix. A blank ID is an error,
+// not a prefix of every ID.
 func (s Store) Get(instance, id string) (Record, error) {
+	if strings.TrimSpace(id) == "" {
+		return Record{}, fmt.Errorf("a snapshot ID is required (see: gsm save list %s)", instance)
+	}
 	all, err := s.List(instance)
 	if err != nil {
 		return Record{}, err
