@@ -30,6 +30,7 @@ The `justfile` has recipes for the commands below; inside the dev shell run `jus
 | `just build` | `go build -o build/ ./cmd/gsm` |
 | `just install [dir]` | builds gsm with its `git describe` version into `dir` (default `~/.local/bin`) |
 | `just test` | `go test -race ./...` |
+| `just coverage` | coverage of `cmd/` and `internal/` by every test, into `build/coverage/` ([Coverage](#coverage)) |
 | `just verify` | `scripts/verify.sh` (what CI runs) |
 | `just fmt` | `go fmt ./...` |
 | `just vuln` | `govulncheck -test ./...` for Linux, Windows and macOS, as CI does |
@@ -91,6 +92,14 @@ It syntax-checks the shell scripts in `scripts/`, checks `gofmt` on every packag
 An earlier end-to-end run like this found two bugs unit tests had missed: the early-exiting `steam-run` wrapper, and `steam-run` hiding `/tmp`. Behavior that spans processes deserves a step in these suites.
 
 On NixOS, keep test data out of `/tmp` when a test starts a server through `steam-run`, which hides `/tmp` from the server.
+
+### Coverage
+
+```
+nix develop -c just coverage
+```
+
+Measures how much of `cmd/` and `internal/` every test exercises, including the gsm processes the suites in `tests/` start, which a plain `go test -cover` can't see. It runs each test once (no cache, no race detector, which stays verify's job): unit tests write raw counters with `-test.gocoverdir`, and `GSM_TEST_COVERDIR` makes the harness build gsm with `-cover` and run it with `GOCOVERDIR`, so `go tool covdata` merges both (Go's [coverage for integration tests](https://go.dev/doc/build-cover)). It prints the coverage per package and in total, and writes `build/coverage/coverage.out` (a text profile) and `build/coverage/coverage.html`, replacing the previous run's output. A failing test prints the test output and no total; skipped tests (the suites skip without git) are listed, since they lower the numbers without failing. Code that runs only in a process the tests kill, or in a fake that re-runs a test binary, writes no counters and reads as uncovered. `GSM_TEST_COVERPKG` names the measured packages for both kinds of test. The suites build only on Linux, so on macOS the numbers cover the unit tests only. There's no coverage threshold or CI gate.
 
 ### Smoke test against the real server
 

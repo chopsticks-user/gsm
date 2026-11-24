@@ -39,6 +39,7 @@ Go is not installed globally; use the flake's dev shell (details in `docs/develo
 - Build (all output goes to `build/`): `nix develop -c go build -o build/ ./cmd/gsm`; install: `just install [dir]`; Nix package: `nix build .#default`
 - Release binaries into `build/release/`: `nix develop -c scripts/release-build.sh v1.2.3`
 - Test: `nix develop -c go test -race ./...`
+- Coverage of `cmd/` and `internal/` by every test, the suites' gsm processes included, into `build/coverage/`: `nix develop -c just coverage`
 - Verify (scripts syntax, gofmt, go vet for Linux/Windows/macOS, race tests including the suites in `tests/`; CI runs the same): `nix develop -c scripts/verify.sh`
 - Smoke tests against the real servers (run before a release): `nix develop -c scripts/smoke-palworld.sh` (5 GB download) and `nix develop -c scripts/smoke-enshrouded.sh` (2 x 7.6 GB, needs wine)
 - Vulnerability scan (CI runs it for Linux, Windows and macOS; needs the network): `nix develop -c govulncheck -test ./...`
