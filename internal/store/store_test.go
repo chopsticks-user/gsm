@@ -326,8 +326,24 @@ func TestGetByPrefix(t *testing.T) {
 	if got, err := s.Get("main", r1.ID[:n]); err != nil || got.ID != r1.ID {
 		t.Fatalf("Get(%q) = %v, %v; want %s", r1.ID[:n], got.ID, err, r1.ID)
 	}
-	if _, err := s.Get("main", ""); err == nil || !strings.Contains(err.Error(), "ambiguous") {
-		t.Fatalf("a prefix of both: err = %v", err)
+	// IDs are hex, so of 17 snapshots two must share their first character.
+	first := map[byte]bool{r1.ID[0]: true, r2.ID[0]: true}
+	shared := ""
+	if r1.ID[0] == r2.ID[0] {
+		shared = r1.ID[:1]
+	}
+	for shared == "" {
+		r, err := s.Snapshot(saves, Record{Instance: "main"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if first[r.ID[0]] {
+			shared = r.ID[:1]
+		}
+		first[r.ID[0]] = true
+	}
+	if _, err := s.Get("main", shared); err == nil || !strings.Contains(err.Error(), "ambiguous") {
+		t.Fatalf("a prefix of two IDs: err = %v", err)
 	}
 	if _, err := s.Get("main", "zzzz"); err == nil || !strings.Contains(err.Error(), `no snapshot "zzzz"`) || !strings.Contains(err.Error(), "gsm save list main") {
 		t.Fatalf("an unknown ID: err = %v", err)

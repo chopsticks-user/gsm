@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 	"testing/iotest"
+	"time"
 )
 
 func write(t *testing.T, path, data string) {
@@ -207,12 +208,16 @@ func TestLinkToKeepsCorrectLink(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	time.Sleep(20 * time.Millisecond) // so a recreated link would get a new mtime
 	if err := LinkTo(path, target); err != nil {
 		t.Fatal(err)
 	}
 	after, err := os.Lstat(path)
-	if err != nil || !os.SameFile(before, after) {
-		t.Fatalf("the link was replaced (err %v)", err)
+	if err != nil || !after.ModTime().Equal(before.ModTime()) {
+		t.Fatalf("the link was replaced: mtime %v -> %v (err %v)", before.ModTime(), after.ModTime(), err)
+	}
+	if dest, err := os.Readlink(path); err != nil || !samePath(dest, target) {
+		t.Fatalf("link -> %q, %v; want %s", dest, err, target)
 	}
 	if read(t, filepath.Join(target, "a.sav")) != "world" {
 		t.Fatal("target changed")

@@ -109,6 +109,13 @@ func TestGitTracksOnlyConfig(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not installed")
 	}
+	// Keep the developer's git config (signing, hooks) out of the commit.
+	global := filepath.Join(t.TempDir(), "gitconfig")
+	if err := os.WriteFile(global, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("GIT_CONFIG_GLOBAL", global)
+	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
 	in := Instance{Name: "main", Dir: t.TempDir(), Config: Config{Game: "palworld", Port: 8211}}
 	for _, f := range []string{
 		"config/PalWorldSettings.ini", "config/sub/extra.ini",

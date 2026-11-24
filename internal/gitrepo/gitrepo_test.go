@@ -71,7 +71,9 @@ func TestCommitIdentity(t *testing.T) {
 		}
 		return strings.TrimSpace(out)
 	}
-	os.WriteFile(filepath.Join(dir, "a.ini"), []byte("x=1\n"), 0o644)
+	if err := os.WriteFile(filepath.Join(dir, "a.ini"), []byte("x=1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	if ok, err := r.CommitAll("first"); !ok || err != nil {
 		t.Fatalf("commit without identity: %v %v", ok, err)
 	}
@@ -81,7 +83,9 @@ func TestCommitIdentity(t *testing.T) {
 	if err := os.WriteFile(global, []byte("[user]\n\tname = Alice\n\temail = alice@example.com\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	os.WriteFile(filepath.Join(dir, "a.ini"), []byte("x=2\n"), 0o644)
+	if err := os.WriteFile(filepath.Join(dir, "a.ini"), []byte("x=2\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	if ok, err := r.CommitAll("second"); !ok || err != nil {
 		t.Fatalf("commit with identity: %v %v", ok, err)
 	}
