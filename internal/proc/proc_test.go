@@ -265,7 +265,7 @@ func TestLaunchStopsServerWhenStateUnwritable(t *testing.T) {
 	c := exec.Command(os.Args[0])
 	c.Env = append(os.Environ(), "GSM_FAKE_SERVER=obedient")
 	start := time.Now()
-	_, err := Launch(c, sf, "main")
+	st, err := Launch(c, sf, "main")
 	if err == nil {
 		t.Fatal("Launch with an unwritable state file succeeded")
 	}
@@ -273,16 +273,10 @@ func TestLaunchStopsServerWhenStateUnwritable(t *testing.T) {
 	if d := time.Since(start); d >= 5*time.Second {
 		t.Fatalf("Launch took %v to fail", d)
 	}
-	// Launch reaps the server itself. Ask through the process handle, which a
-	// reused PID can't fool.
-	for i := 0; ; i++ {
-		if errors.Is(c.Process.Signal(syscall.Signal(0)), os.ErrProcessDone) {
-			return
-		}
-		if i == 40 {
-			c.Process.Kill()
-			t.Fatal("the server is still running after the failed launch")
-		}
-		time.Sleep(50 * time.Millisecond)
+	// PID plus start time, so a reused PID can't fool it, and the whole
+	// group (the job on Windows).
+	if st.PID == 0 || ServerAlive(st) {
+		kill(st)
+		t.Fatalf("the server is still running after the failed launch (state %+v)", st)
 	}
 }

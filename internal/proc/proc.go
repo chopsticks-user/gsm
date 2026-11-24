@@ -67,7 +67,9 @@ func Running(stateFile, instance string) (State, bool, error) {
 }
 
 // Launch starts c detached from the terminal and records it in stateFile.
-// The caller sets c.Stdout/Stderr; stdin stays the null device.
+// The caller sets c.Stdout/Stderr; stdin stays the null device. If the
+// state file can't be written, Launch stops the server and returns its
+// State with the error, so the caller can check it is gone.
 func Launch(c *exec.Cmd, stateFile, instance string) (State, error) {
 	detach(c)
 	if err := c.Start(); err != nil {
@@ -94,13 +96,13 @@ func Launch(c *exec.Cmd, stateFile, instance string) (State, error) {
 		reaped := make(chan struct{})
 		go func() { c.Wait(); close(reaped) }()
 		if _, _, serr := Stop(st, syscall.SIGTERM, 5*time.Second); serr != nil {
-			return State{}, fmt.Errorf("%w; the server it started (pid %d) may still be running: %v", err, st.PID, serr)
+			return st, fmt.Errorf("%w; the server it started (pid %d) may still be running: %v", err, st.PID, serr)
 		}
 		select { // let Wait finish copying the server's last output
 		case <-reaped:
 		case <-time.After(2 * time.Second):
 		}
-		return State{}, err
+		return st, err
 	}
 	return st, nil
 }
