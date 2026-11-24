@@ -197,9 +197,10 @@ func New(t *testing.T) *Home {
 	h := &Home{t: t, gsm: bin, Dir: filepath.Join(root, "gsm")}
 	for _, kv := range os.Environ() {
 		// GIT_* (set inside git hooks) would point gsm's git calls at this
-		// repo; XDG config could bring in the developer's git config.
+		// repo; XDG config could bring in the developer's git config; a
+		// GSM_TEST_* left in the shell would switch every fake's behavior.
 		k, _, _ := strings.Cut(kv, "=")
-		if k == "PATH" || k == "HOME" || k == "GSM_HOME" || strings.HasPrefix(k, "XDG_") || strings.HasPrefix(k, "GIT_") {
+		if k == "PATH" || k == "HOME" || k == "GSM_HOME" || strings.HasPrefix(k, "XDG_") || strings.HasPrefix(k, "GIT_") || strings.HasPrefix(k, "GSM_TEST_") {
 			continue
 		}
 		h.env = append(h.env, kv)

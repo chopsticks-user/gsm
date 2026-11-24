@@ -55,12 +55,26 @@ func fakeSteamcmd(args []string) int {
 	switch {
 	case app == "2394010" && platform == "":
 		if os.Getenv("GSM_TEST_CLOBBER") != "" {
+			// Fail loudly rather than install normally, so a test can't
+			// blame gsm for a clobber that never happened.
 			saves := filepath.Join(dir, "Pal", "Saved", "SaveGames")
-			if fi, err := os.Lstat(saves); err == nil && fi.Mode()&os.ModeSymlink != 0 {
-				os.Remove(saves)
-				stock := filepath.Join(saves, "0", "STOCK", "Level.sav")
-				os.MkdirAll(filepath.Dir(stock), 0o755)
-				os.WriteFile(stock, []byte("stock save"), 0o644)
+			stock := filepath.Join(saves, "0", "STOCK", "Level.sav")
+			fi, err := os.Lstat(saves)
+			if err == nil && fi.Mode()&os.ModeSymlink == 0 {
+				err = fmt.Errorf("%s is not a link", saves)
+			}
+			if err == nil {
+				err = os.Remove(saves)
+			}
+			if err == nil {
+				err = os.MkdirAll(filepath.Dir(stock), 0o755)
+			}
+			if err == nil {
+				err = os.WriteFile(stock, []byte("stock save"), 0o644)
+			}
+			if err != nil {
+				fmt.Fprintln(os.Stderr, "fake steamcmd: can't clobber the saves link:", err)
+				return 1
 			}
 		}
 		files = map[string]string{

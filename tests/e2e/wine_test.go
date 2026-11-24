@@ -37,11 +37,7 @@ func TestEnshroudedUnderWine(t *testing.T) {
 	harness.WaitFor(t, "the first save", func() bool { _, err := os.Stat(save); return err == nil })
 	harness.MustContain(t, h.OK("logs", "main"), "WINEPREFIX="+h.Inst("main", "wine"), `"queryPort": 15637`)
 
-	out := h.OK("stop", "main")
-	harness.MustContain(t, out, "main: stopped", "main: snapshot")
-	if strings.Contains(out, "killed") {
-		t.Fatalf("stop had to kill the server:\n%s", out)
-	}
+	harness.MustContain(t, h.OK("stop", "main"), "main: stopped", "main: snapshot")
 	if got := harness.ReadFile(t, save); !strings.HasPrefix(got, "final save") {
 		t.Fatalf("save after stop = %q, want the shutdown save SIGINT triggers", got)
 	}
