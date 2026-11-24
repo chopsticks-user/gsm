@@ -142,6 +142,9 @@ func cmdSave(e env, args []string) error {
 		if len(pos) != 3 {
 			return errors.New("usage: gsm save restore <name> <id>")
 		}
+		if strings.TrimSpace(pos[2]) == "" { // before the lock wait; store.Get checks too
+			return fmt.Errorf("a snapshot ID is required (see: gsm save list %s)", i.Name)
+		}
 		_, ok, err := proc.Running(i.StateFile(), i.Name)
 		if err != nil {
 			return err

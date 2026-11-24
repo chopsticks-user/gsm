@@ -9,6 +9,7 @@ import (
 
 	"github.com/chopsticks-user/gsm/internal/game"
 	"github.com/chopsticks-user/gsm/internal/instance"
+	"github.com/chopsticks-user/gsm/internal/store"
 )
 
 // Mistyped commands fail with a message that says what to do, before
@@ -123,8 +124,12 @@ func TestRestoreRejectsBlankID(t *testing.T) {
 		t.Fatal(err)
 	}
 	records := func() int {
-		m, _ := filepath.Glob(filepath.Join(home, "store", "snapshots", "main", "*.json"))
-		return len(m)
+		t.Helper()
+		recs, err := store.Store{Dir: filepath.Join(home, "store")}.List("main")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return len(recs)
 	}
 	for _, id := range []string{"", " "} {
 		if err := run([]string{"--home", home, "save", "restore", "main", id}); err == nil || !strings.Contains(err.Error(), "snapshot ID is required") {
