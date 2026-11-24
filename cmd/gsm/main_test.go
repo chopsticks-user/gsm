@@ -100,3 +100,38 @@ func TestHumanSize(t *testing.T) {
 		}
 	}
 }
+
+// save restore with a blank ID fails before the safety snapshot, so the
+// saves and the store stay as they were.
+func TestRestoreRejectsBlankID(t *testing.T) {
+	home := t.TempDir()
+	in := instance.Instance{Name: "main", Dir: filepath.Join(instance.Root(home), "main"), Config: instance.Config{Game: "palworld", Port: 8211}}
+	save := filepath.Join(in.SavesDir(), "Level.sav")
+	if err := os.MkdirAll(in.SavesDir(), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := in.Save(); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(save, []byte("my world"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := run([]string{"--home", home, "save", "snapshot", "main"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(save, []byte("changed since"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	records := func() int {
+		m, _ := filepath.Glob(filepath.Join(home, "store", "snapshots", "main", "*.json"))
+		return len(m)
+	}
+	for _, id := range []string{"", " "} {
+		if err := run([]string{"--home", home, "save", "restore", "main", id}); err == nil || !strings.Contains(err.Error(), "snapshot ID is required") {
+			t.Fatalf("gsm save restore main %q: %v", id, err)
+		}
+	}
+	if b, _ := os.ReadFile(save); string(b) != "changed since" || records() != 1 {
+		t.Fatalf("a rejected restore changed the saves (%q) or took a snapshot (%d records)", b, records())
+	}
+}

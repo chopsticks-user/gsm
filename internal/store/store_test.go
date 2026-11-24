@@ -349,3 +349,22 @@ func TestGetByPrefix(t *testing.T) {
 		t.Fatalf("an unknown ID: err = %v", err)
 	}
 }
+
+// A blank ID would match every snapshot as a prefix; it's an error, even
+// with no snapshots or exactly one.
+func TestGetRejectsBlankID(t *testing.T) {
+	s, saves := setup(t)
+	for _, id := range []string{"", "  "} {
+		if _, err := s.Get("main", id); err == nil || !strings.Contains(err.Error(), "snapshot ID is required") {
+			t.Fatalf("Get(%q) with no snapshots: err = %v", id, err)
+		}
+	}
+	if _, err := s.Snapshot(saves, Record{Instance: "main"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{"", "  "} {
+		if _, err := s.Get("main", id); err == nil || !strings.Contains(err.Error(), "snapshot ID is required") {
+			t.Fatalf("Get(%q) with one snapshot: err = %v", id, err)
+		}
+	}
+}

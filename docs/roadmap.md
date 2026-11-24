@@ -65,4 +65,3 @@ Issues that don't fit any theme stay without a milestone until one fits, and are
 - [#75](https://github.com/chopsticks-user/gsm/issues/75) Run the Linux smoke tests in a container from CI
 - [#78](https://github.com/chopsticks-user/gsm/issues/78) Project agent skills (gsm:*) for developer guidance and chores
 - [#79](https://github.com/chopsticks-user/gsm/issues/79) Narrow the Nix package source to the Go files
-- [#106](https://github.com/chopsticks-user/gsm/issues/106) gsm save restore with an empty ID restores the only snapshot
