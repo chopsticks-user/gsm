@@ -25,7 +25,14 @@ import (
 	"time"
 )
 
-const gsmPkg = "github.com/chopsticks-user/gsm/cmd/gsm"
+const (
+	gsmPkg    = "github.com/chopsticks-user/gsm/cmd/gsm"
+	coverPkgs = "github.com/chopsticks-user/gsm/cmd/...,github.com/chopsticks-user/gsm/internal/..."
+)
+
+// coverDir, set by just coverage, makes the suites build gsm with coverage
+// and have every gsm process write its counters there (GOCOVERDIR).
+var coverDir = os.Getenv("GSM_TEST_COVERDIR")
 
 // Main is a suite's TestMain: it plays a fake when the test binary was
 // started as one, and otherwise runs the tests.
@@ -78,6 +85,9 @@ func build() (string, error) {
 	if raceEnabled { // so the processes the tests start keep the race detector
 		args = append(args, "-race")
 	}
+	if coverDir != "" { // just coverage: count what the suites' gsm runs
+		args = append(args, "-cover", "-coverpkg="+coverPkgs)
+	}
 	if out, err := exec.Command("go", append(args, gsmPkg)...).CombinedOutput(); err != nil {
 		return "", fmt.Errorf("building gsm: %v\n%s", err, out)
 	}
@@ -88,7 +98,7 @@ func build() (string, error) {
 // the test binary and the files and variables the test read; the suites don't
 // import cmd/gsm, so without this a cached pass would hide a change to gsm.
 func readSources() error {
-	for _, k := range []string{"GOFLAGS", "CGO_ENABLED", "GOEXPERIMENT"} {
+	for _, k := range []string{"GOFLAGS", "CGO_ENABLED", "GOEXPERIMENT", "GSM_TEST_COVERDIR"} {
 		os.Getenv(k) // read only so go test records it: the gsm build uses it too
 	}
 	out, err := exec.Command("go", "list", "-deps", "-json=Dir,GoFiles,CgoFiles,EmbedFiles,Module", gsmPkg).Output()
@@ -207,6 +217,9 @@ func New(t *testing.T) *Home {
 	}
 	// Under -race every gsm process would sleep 1s at exit (GORACE atexit_sleep_ms).
 	h.env = append(h.env, "GORACE=atexit_sleep_ms=0", "HOME="+fakeHome, "PATH="+shimDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	if coverDir != "" {
+		h.env = append(h.env, "GOCOVERDIR="+coverDir)
+	}
 	t.Cleanup(func() {
 		if out, err := h.Run(nil, "stop", "--all"); err != nil {
 			t.Errorf("cleanup: gsm stop --all: %v\n%s", err, out)
