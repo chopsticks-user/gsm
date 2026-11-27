@@ -33,7 +33,7 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           go-version: stable # the latest Go, like the flake's Go that release binaries are built with
       - name: Install steamcmd

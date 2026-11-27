@@ -23,7 +23,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
-      - uses: cachix/install-nix-action@v31
+      - uses: cachix/install-nix-action@v32
       # The same command as locally: scripts syntax, gofmt, go vet for
       # Linux/Windows/macOS, and the race tests, the suites in tests/ included.
       - name: Verify

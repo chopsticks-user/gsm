@@ -35,7 +35,7 @@ jobs:
             fi
           fi
           echo "::error::$GITHUB_REF_NAME is neither on main nor a patch on its release-X.Y branch"; exit 1
-      - uses: cachix/install-nix-action@v31
+      - uses: cachix/install-nix-action@v32
       - name: Verify
         run: nix develop -c scripts/verify.sh
       - name: Build
